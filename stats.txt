@@ -1,0 +1,78 @@
+Request: ../autodebloating/webapps/DVWA/index.php
+
+===== Options =====
+Array
+(
+    [f] => ../autodebloating/webapps/DVWA/index.php
+)
+/mnt/c/Users/baminazad/Documents/Pragsec/malmax-shipped
+
+===== General Statistics =====
+Execution time: 22200.53
+Array
+(
+    [parsed] => Array
+        (
+            [files] => Array
+                (
+                    [all] => 4
+                    [unique] => 4
+                )
+
+        )
+
+    [node] => Array
+        (
+            [include] => 6
+            [exit] => 7
+        )
+
+    [statements] => Array
+        (
+            [visited] => Array
+                (
+                    [sum] => 90
+                    [unique] => 90
+                )
+
+            [executed] => Array
+                (
+                    [sum] => 25
+                    [unique] => 25
+                    [include] => 4
+                )
+
+            [parsed] => 126
+        )
+
+    [if] => Array
+        (
+            [count] => 3
+            [branches] => 3
+            [single] => 3
+        )
+
+    [error] => Array
+        (
+            [all] => 1
+            [mainbranch] => 1
+        )
+
+)
+
+===== Included Files =====
+Array
+(
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/index.php] => 1
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/dvwa/includes/dvwaPage.inc.php] => 1
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/config/config.inc.php] => 1
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/dvwa/includes/dvwaPhpIds.inc.php] => 1
+)
+
+===== Constants =====
+Array
+(
+    [DVWA_WEB_PAGE_TO_ROOT] => 
+    [DVWA_WEB_ROOT_TO_PHPIDS] => external/phpids/0.6/
+    [DVWA_WEB_PAGE_TO_PHPIDS] => external/phpids/0.6/
+)
