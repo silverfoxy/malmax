@@ -1,0 +1,11 @@
+{
+  "name": "abiusx/malmax",
+  "require": {
+    
+  },
+  "autoload": {
+    "psr-4": {
+      "malmax\\": "."
+    }
+  }
+}

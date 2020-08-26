@@ -2,8 +2,8 @@
 <?php
 #FIXME: when evaluating branch conditions for off-branching, it should be isolated, otherwise side-effects can apply!
 ini_set("memory_limit","1000M");
-require_once __DIR__."/analyzer.php";
-
+require_once __DIR__ . "/phpanalyzer.php";
+use malmax\PHPAnalyzer;
 $usage="Usage: php main.php -f file.php [-v verbosity --output --strict --concolic --diehard --postprocessing]\n";
 if (isset($argc))// and realpath($argv[0])==__FILE__)
 {
@@ -13,7 +13,27 @@ if (isset($argc))// and realpath($argv[0])==__FILE__)
 		die($usage);
 	
 	ini_set("memory_limit",-1);
-	$x=new PHPAnalyzer;
+    $init_environ=[];
+    $superglobals=array_flip(explode(",$",'_GET,$_POST,$_FILES,$_COOKIE,$_SESSION,$_SERVER,$_REQUEST,$_ENV,$GLOBALS'));
+    foreach ($superglobals as $k=>$sg)
+        if (isset($GLOBALS[$k]))
+            $init_environ[$k]=&$GLOBALS[$k];
+        else
+            $init_environ[$k]=[];
+    $init_environ['GLOBALS']=&$init_environ;
+	// Read config from JSON
+    $config = 'config.json';
+    $config_json = file_get_contents($config);
+    $config_json = json_decode($config_json, true);
+    $init_environ['_SERVER']['SERVER_NAME'] = $config_json['server']['server_name'];
+    $init_environ['_SERVER']['SERVER_ADDR'] = $config_json['server']['server_addr'];
+    $init_environ['_SERVER']['GATEWAY_INTERFACE'] = $config_json['server']['gateway_interface'];
+    $init_environ['_SERVER']['SERVER_SOFTWARE'] = $config_json['server']['server_software'];
+    $init_environ['_SERVER']['SERVER_PROTOCOL'] = $config_json['server']['server_protocol'];
+    $init_environ['_SERVER']['SERVER_ADMIN'] = $config_json['server']['server_admin'];
+    $init_environ['_SERVER']['SERVER_PORT'] = $config_json['server']['server_port'];
+    $init_environ['_SERVER']['SERVER_SIGNATURE'] = $config_json['server']['server_signature'];
+ 	$x=new PHPAnalyzer($init_environ);
 	$x->static=isset($options['static']); //only postprocessing/static
 	$x->strict=isset($options['strict']); //die on errors
 	$x->direct_output=isset($options['output']);

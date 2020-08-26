@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Run" type="PhpLocalRunConfigurationType" factoryName="PHP Console" path="$PROJECT_DIR$/main.php" scriptParameters="-f /mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/index.php">
+    <CommandLine parameters="-dxdebug.remote_host=wsl2.host">
+      <PhpTestInterpreterSettings>
+        <option name="interpreterName" value="Ubuntu 18.04" />
+      </PhpTestInterpreterSettings>
+    </CommandLine>
+    <method v="2" />
+  </configuration>
+</component>

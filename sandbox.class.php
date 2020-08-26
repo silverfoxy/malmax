@@ -1,6 +1,6 @@
 <?php
 use PhpParser\Node;
-require_once __DIR__."/analyzer.php";
+require_once __DIR__ . "/phpanalyzer.php";
 
 ini_set("allow_url_fopen",0); //sandbox
 ini_set("allow_url_include",0); //sandbox

@@ -1,61 +1,57 @@
-Request: ../autodebloating/webapps/DVWA/index.php
+Request: /mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php
 
 ===== Options =====
 Array
 (
-    [f] => ../autodebloating/webapps/DVWA/index.php
+    [f] => /mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php
+    [concolic] => 
+    [diehard] => 
 )
-/mnt/c/Users/baminazad/Documents/Pragsec/malmax-shipped
+/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax
 
 ===== General Statistics =====
-Execution time: 22200.53
+Execution time: 0.19
 Array
 (
     [parsed] => Array
         (
             [files] => Array
                 (
-                    [all] => 4
-                    [unique] => 4
+                    [all] => 1
+                    [unique] => 1
                 )
 
-        )
-
-    [node] => Array
-        (
-            [include] => 6
-            [exit] => 7
         )
 
     [statements] => Array
         (
+            [parsed] => 6
             [visited] => Array
                 (
-                    [sum] => 90
-                    [unique] => 90
+                    [sum] => 5
+                    [unique] => 5
                 )
 
             [executed] => Array
                 (
-                    [sum] => 25
-                    [unique] => 25
-                    [include] => 4
+                    [sum] => 5
+                    [unique] => 5
                 )
 
-            [parsed] => 126
         )
 
     [if] => Array
         (
-            [count] => 3
+            [count] => 1
             [branches] => 3
-            [single] => 3
+            [elseifs] => 1
+            [elses] => 1
         )
 
-    [error] => Array
+    [off-branch] => Array
         (
-            [all] => 1
-            [mainbranch] => 1
+            [all] => 2
+            [executed] => 2
         )
 
 )
@@ -63,16 +59,16 @@ Array
 ===== Included Files =====
 Array
 (
-    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/index.php] => 1
-    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/dvwa/includes/dvwaPage.inc.php] => 1
-    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/config/config.inc.php] => 1
-    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/webapps/DVWA/dvwa/includes/dvwaPhpIds.inc.php] => 1
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php] => 1
+)
+
+===== Concolic Files =====
+Array
+(
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php] => 1
 )
 
 ===== Constants =====
 Array
 (
-    [DVWA_WEB_PAGE_TO_ROOT] => 
-    [DVWA_WEB_ROOT_TO_PHPIDS] => external/phpids/0.6/
-    [DVWA_WEB_PAGE_TO_PHPIDS] => external/phpids/0.6/
 )

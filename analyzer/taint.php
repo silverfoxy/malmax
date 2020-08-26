@@ -3,7 +3,7 @@ use PhpParser\Node;
 $_GET[1]="input";
 $_GET['log']="input"; //for wordpress test
 $_GET['pwd']="input"; //for wordpress test
-require_once __DIR__."/../analyzer.php";
+require_once __DIR__ . "/../phpanalyzer.php";
 /**
  * There's a problem with expressions and taint
  * taint propagation needs access to both the evaluated expression and its shadow taint values

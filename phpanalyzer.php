@@ -1,4 +1,5 @@
 <?php
+namespace malmax;
 require_once "cli-colors.php";
 //function available in apache
 if (!function_exists("apache_getenv"))
@@ -24,7 +25,9 @@ function timer($what=-1)
 			return sprintf("%.2f",$diff);
 	}
 }
-require_once "php-emul/oo.php";
+require_once dirname(__FILE__)."/php-emul/oo.php";
+
+use PHPEmul\SymbolicVariable;
 use PhpParser\Node;
 if (!function_exists("set_magic_quotes_runtime"))
 {
@@ -47,8 +50,19 @@ if (!function_exists("set_magic_quotes_runtime"))
 // 		return unserialize_mock($emul,$var);
 // }
 
-class PHPAnalyzer extends OOEmulator
+class PHPAnalyzer extends \PHPEmul\OOEmulator
 {
+    /*
+     * Includes the file and line information where this process was forked.
+     * [file_name => line_number]
+     */
+    public array $fork_info = [];
+    public array $symbolic_parameters = [];
+    public array $symbolic_functions = [];
+    public array $input_sensitive_symbolic_functions = [];
+    public bool $is_child = false;
+    public bool $diehard = false;
+    public int $process_count = 1;
 	/**
 	 * A list of statements processed
 	 * @var array
@@ -605,7 +619,22 @@ class PHPAnalyzer extends OOEmulator
 		gc_collect_cycles();
 	}
 
-	/**
+	// public function run_file($file)
+    // {
+    //     $result = parent::run_file($file);
+    //     while (sizeof($this->rerun_points) > 0 && end($this->rerun_points)->current_file ===  $file) {
+    //         $this->verbose(strcolor(
+    //             sprintf("Restoring concolic path %s [%s:%s] (depth=%d)...\n",$this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+    //             ,"light green"),0);
+    //         $rerun_point = array_pop($this->rerun_points);
+    //         $this->restore_snapshot($rerun_point->snapshot);
+    //         $ast = $this->parse($file);
+    //         $result = parent::run_code($ast, $this->current_node);
+    //     }
+    //     return $result;
+    // }
+
+    /**
 	 * Starts an off-branch by taking a snapshot and applying it.
 	 * @return [type] [description]
 	 */
@@ -618,7 +647,7 @@ class PHPAnalyzer extends OOEmulator
 		// }
 		$this->off_branch++;
 		$this->verbose(strcolor(
-			sprintf("Branching off at %s (depth=%d)...\n",$this->statement_id(),$this->off_branch)
+			sprintf("Branching off at %s [%s:%s] (depth=%d)...\n",$this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
 			,"light green"),0);
 		if ($this->off_branch_recursive_isolation or $this->off_branch==1)
 			$this->snapshot_stack[]=$this->snapshot();
@@ -684,7 +713,7 @@ class PHPAnalyzer extends OOEmulator
 		$this->run_code($stmts);
 		$this->off_branch_end();
 	}
-	function evaluate_expression($node)
+	function evaluate_expression($node, &$is_symbolic = false)
 	{
 		if ($node instanceof Node\Expr\Exit_ and $this->diehard)
 		{
@@ -706,12 +735,16 @@ class PHPAnalyzer extends OOEmulator
 			$this->inc("statements/executed/include");
 
 
-		return parent::evaluate_expression($node);
+		return parent::evaluate_expression($node, $is_symbolic);
 	}
 	function file_line($prepend="",$append="")
 	{
 		return "{$prepend}{$this->current_file}:{$this->current_line}{$append}";
 	}
+
+	function add_rerun_point(Node $current_condition) {
+        $this->rerun_points[] = new RerunPoint($this->snapshot(false), $this->statement_id($current_condition), $this->current_file);
+    }
 
 	public $if_nesting =0;
 	/**
@@ -741,8 +774,6 @@ class PHPAnalyzer extends OOEmulator
 
 		if ($node instanceof Node\Stmt\If_)
 		{
-
-
 			$this->inc("if/count");
 			$this->inc("if/branches");
 			if ($this->off_branch)
@@ -782,53 +813,153 @@ class PHPAnalyzer extends OOEmulator
 
 			if ($this->concolic) //execute them all!
 			{
+			    // TODO: For proper implementation here
+			    // $branch_statements = null;
+			    // $branch_execution_done = false;
+			    // // Check if one of the conditions are factual and the condition is satisfied.
+                // $branch_evaled_conditions = [];
+                // $branch_evaled_conditions[$this->statement_id($node->cond)] = $this->evaluate_expression($node->cond);
+                // // If main branch is factual, only execute that one
+                // if ($branch_evaled_conditions[$this->statement_id($node->cond)]) {
+                //     $branch_statements = $node->stmts;
+                //     $branch_execution_done = true;
+                //     $condition = $this->print_ast($node->cond);
+                // }
+                // else {
+                //     // Check if any of the elseif and else branches are factual
+                //     $else_statements = [];
+                //     if (is_array($node->elseifs)) {
+                //         $else_statements = $node->elseifs;
+                //     }
+                //     foreach ()
+                // }
+                // if ($this->evaluate_expression())
 				$stmts=null;
 				$done=false;
-				if ($this->evaluate_expression($node->cond)) //main branch is factual, all else are not
-				{
-					$done=true;	
-					$stmts=($node->stmts);
-					$condition=$this->print_ast($node->cond);
-				}
-				if (!$done) //main branch was not factual, run it
-				{
-					array_push($this->active_conditions,$this->print_ast($node->cond));
-					$this->run_off_branch_code($node->stmts,$node,0);
-					array_pop($this->active_conditions);
-				}
-				$index=0;
-				if (is_array($node->elseifs))
-					foreach ($node->elseifs as $elseif)
-					{
-						$index++;
-						if (!$done and $this->evaluate_expression($elseif->cond))
-						{
-							$done=true;	
-							$condition=$this->print_ast($elseif->cond);
-							$stmts=($elseif->stmts);
-						}
-						else
-						{
-							array_push($this->active_conditions,$this->print_ast($elseif->cond));
-							$this->run_off_branch_code($elseif->stmts,$node,$index);
-							array_pop($this->active_conditions);
+				// Check if any of the branches are concrete
 
-						}
-					}
-				if (!$done and isset($node->else))
-				{
-					$condition="not ".$this->print_ast($node->cond);
-					$stmts=($node->else->stmts);
-				}
-				elseif (isset($node->else))
-				{
-					array_push($this->active_conditions,"not ".$this->print_ast($node->cond));
-					$this->run_off_branch_code($node->else->stmts,$node,-1);
-					array_pop($this->active_conditions);
-				}
+                $none_symbolic = true;
+                $is_symbolic = false;
+				$main_branch_condition = $this->evaluate_expression($node->cond, $is_symbolic);
+                if ($main_branch_condition && !$main_branch_condition instanceof SymbolicVariable && !$is_symbolic) {
+                    // Condition of this branch is concretely satisfied
+                    $done=true;
+                    $stmts = $node->stmts;
+                    $condition = $this->print_ast($node->cond);
+                }
+                elseif ($main_branch_condition) {
+                    // Main branch condition Symbolic
+                    $none_symbolic = false;
+                }
+                $branch_conditions = [];
 
+                if (!$done && is_array($node->elseifs) && sizeof($node->elseifs) > 0) {
+                    // Main branch is not satisfied, now checking the elseif branches
+                    foreach ($node->elseifs as $elseif) {
+                        $branch_condition = $this->evaluate_expression($elseif->cond);;
+                        $branch_conditions[$this->statement_id($elseif)] = $branch_condition;
+                        if ($branch_condition && !$branch_condition instanceof SymbolicVariable) {
+                            // Condition of this branch is concretely satisfied
+                            $done=true;
+                            $stmts = $elseif->stmts;
+                            $condition = $this->print_ast($elseif->cond);
+                            break;
+                        }
+                        elseif ($branch_condition) {
+                            $none_symbolic = false;
+                        }
+                    }
+                }
+                if ($none_symbolic && !$done) {
+                    if (isset($node->else)) {
+                        // run else
+                        $done = true;
+                        $stmts = $node->else->stmts;
+                        $condition="not ".$this->print_ast($node->cond);
+                    }
+                    else {
+                        // Nothing to do
+                        $done = true;
+                        $condition = '';
+                    }
+                }
+				// If this condition was not covered in a previous run
+				// if (!$done && !in_array($this->statement_id($this->cond), $this->skip_conditions)) //main branch was not factual, run it
+                if (!$done)
+				{
+                    $this->process_count++;
+                    if (!pcntl_fork()) {
+                        $this->fork_info = [$this->current_file => $this->current_line];
+                        $this->is_child = true;
+                        $this->verbose(strcolor(
+                            sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                            ,"light green"),0);
+				        $stmts = $node->stmts;
+				        $done = true;
+                    }
+					// array_push($this->active_conditions,$this->print_ast($node->cond));
+					// // Add node to covered nodes
+                    // $done=true;
+                    // // Add a rerun point
+                    // $this->add_rerun_point($node->cond);
+					// $this->run_off_branch_code($node->stmts,$node,0);
+					// array_pop($this->active_conditions);
+				}
+                if (!$done) {
+                    $index=0;
+                    $else_statements = [];
+                    if (is_array($node->elseifs)) {
+                        $else_statements = $node->elseifs;
+                    }
+                    foreach ($else_statements as $elseif)
+                    {
+                        $index++;
+                        if ($branch_conditions[$this->statement_id($elseif)] instanceof SymbolicVariable) {
+                            // Only run the branches that rely on the symbolic value
+                            $this->process_count++;
+                            if (!pcntl_fork()) {
+                                $this->fork_info = [$this->current_file => $this->current_line];
+                                $this->is_child = true;
+                                $this->verbose(strcolor(
+                                    sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                                    ,"light green"),0);
+                                if (isset($elseif->cond)) {
+                                    $condition = $this->print_ast($elseif->cond);
+                                }
+                                else {
+                                    $condition = 'else';
+                                }
+                                $stmts = $elseif->stmts;
+                                $done = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!$done and isset($node->else))
+                    {
+                        $condition="not ".$this->print_ast($node->cond);
+                        $stmts=($node->else->stmts);
+                    }
+                    // elseif (isset($node->else))
+                    // {
+                    //     if (!pcntl_fork()) {
+                    //         $this->fork_info = [$this->current_file => $this->current_line];
+                    //         $this->verbose(strcolor(
+                    //             sprintf("Forking at%s [%s:%s] (depth=%d)...\n",$this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                    //             ,"light green"),0);
+                    //         $stmts = $node->else->stmts;
+                    //     }
+                    // 	// array_push($this->active_conditions,"not ".$this->print_ast($node->cond));
+                    // 	// // We do not need a rerun point for last else
+                    // 	// $this->run_off_branch_code($node->else->stmts,$node,-1);
+                    // 	// array_pop($this->active_conditions);
+                    // }
+                }
 				if ($stmts!==null)
 				{
+				    if (!isset($condition)) {
+				        $condition = 'not set';
+                    }
 					array_push($this->active_conditions,$condition);
 					$this->if_nesting++;
 					$this->run_code($stmts);
@@ -845,7 +976,6 @@ class PHPAnalyzer extends OOEmulator
 				array_pop($this->active_conditions);
 				return $res;
 			}
-
 		}
 		elseif ($node instanceof Node\Stmt\Switch_)
 		{
@@ -866,10 +996,139 @@ class PHPAnalyzer extends OOEmulator
 				$done=false;
 				$condition=false;
 				$index=0;
-				$cond=$this->evaluate_expression($node->cond);
+				$master_condition=$this->evaluate_expression($node->cond);
 				$this->verbose("Concolic switch with ".count($node->cases)." cases found...\n",3);
+				$case_conditions = [];
+				$index = 0;
+				$none_symbolic = true;
+				// If the main condition is Symbolic then run everything
+                $run_next_case = false;
+                if ($master_condition instanceof SymbolicVariable) {
+                    $this->verbose("Switch condition relies on SymbolicVariable, running all branches\n",0);
+                    foreach ($node->cases as $case) {
+                        if ($case->cond === null) { // If default branch, do not fork
+                            $this->verbose(strcolor(
+                                sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(),$this->current_file, $this->current_line)
+                                ,"light green"),0);
+                            $this->run_code($case->stmts);
+                            $done=true;
+                            // To take care of the last break
+                            $this->loop_condition();
+                            break;
+                        }
+                        // If not default branch, fork for each case
+                        $this->process_count++;
+                        $pid = true;
+                        if (!$run_next_case) {
+                            $pid = pcntl_fork();
+                        }
+                        if (!$pid || $run_next_case) {
+                            if(!$pid) {
+                                $this->is_child = true;
+                                $this->verbose(strcolor(
+                                    sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                                    ,"light green"),0);
+                            }
+                            $this->run_code($case->stmts);
+                            // loop_condition reduces the number of breaks, it needs to be here
+                            if ($this->loop_condition()) {
+                                $done=true;
+                                break;
+                            }
+                            else {
+                                $run_next_case = true;
+                            }
+                        }
+                    }
+                }
+                else {
+                    // If individual cases are Symbolic then run that one
+                    $this->verbose("Switch condition is concrete, checking branch conditions branches\n",0);
+                    $done = false;
+                    $run_next_case = false;
+                    foreach ($node->cases as $case) {
+                        if ($done) {
+                            break;
+                        }
+                        // If some of the conditions are concretely satisfied, run those
+                        $cond = $this->evaluate_expression($case->cond);
+                        if ($cond == $master_condition && !$cond instanceof SymbolicVariable) {
+                            $this->run_code($case->stmts);
+                            // loop_condition reduces the number of breaks, it needs to be here
+                            if ($this->loop_condition()) {
+                                $done=true;
+                            }
+                        }
+                        elseif ($cond instanceof SymbolicVariable || $run_next_case) {
+                            // If some of the conditions are Symbolic, fork and run them
+                            // Or if the case is piggy backing a Symbolic condition, also run that one ($run_next_case)
+                            $this->process_count++;
+                            $pid = true;
+                            if (!$run_next_case) {
+                                $pid = pcntl_fork();
+                            }
+                            if (!$pid || $run_next_case) {
+                                if(!$pid) {
+                                    $this->is_child = true;
+                                    $this->verbose(strcolor(
+                                        sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                                        ,"light green"),0);
+                                }
+                                $this->run_code($case->stmts);
+                                // loop_condition reduces the number of breaks, it needs to be here
+                                if ($this->loop_condition()) {
+                                    $done=true;
+                                    break;
+                                }
+                                else {
+                                    $run_next_case = true;
+                                }
+                            }
+                        }
+                        elseif ($case->cond === null) {
+                            // If none are symbolic nor concretely satisfied, run default
+                            $this->verbose(strcolor(
+                                sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(),$this->current_file, $this->current_line)
+                                ,"light green"),0);
+                            $this->run_code($case->stmts);
+                            $done=true;
+                            // To take care of the last break
+                            $this->loop_condition();
+                            break;
+                        }
+                    }
+                }
+                return;
+                // If none of the cases are Symbolic nor satisfied then run the default case
+
+                // Else, run everything
+                foreach ($node->cases as $case)
+                {
+                    $index++;
+                    $case_condition[$this->statement_id($case)] = $this->evaluate_expression($case->cond);
+                    if ($case_condition && !$case_condition instanceof SymbolicVariable) {
+                        // We have found a concretely satisfied case
+                        $default=$case->cond===NULL;
+                        $d=$default?" (default)":"";
+                        $this->verbose("Case {$index}{$d} is a matching case, running...\n",0);
+                        $this->run_code($case->stmts);
+                        if ($this->loop_condition())
+                            $done=true;
+                    }
+                    elseif ($case_condition instanceof SymbolicVariable) {
+                        $none_symbolic = false;
+                    }
+                }
+                // if ($none_symbolic) {
+                //     // None of the cases are symbolic and none are concretely satisfied
+                //     // Run the default case
+                // }
+                $index = 0;
 				foreach ($node->cases as $case)
 				{
+                    if ($done) {
+                        break;
+                    }
 					$index++;
 					$default=$case->cond===NULL;
 					$this->verbose("Checking switch case {$index}...\n",4);
@@ -880,9 +1139,9 @@ class PHPAnalyzer extends OOEmulator
 						$condition=true;
 
 					$d=$default?" (default)":"";
-					if ($condition and !$done)
+					if ($condition)
 					{
-						$this->verbose("Case {$index}{$d} is a matching case, running...\n",4);
+						$this->verbose("Case {$index}{$d} is a matching case, running...\n",0);
 						$this->run_code($case->stmts);
 						if ($this->loop_condition())
 							$done=true;
@@ -890,15 +1149,31 @@ class PHPAnalyzer extends OOEmulator
 					}
 					else
 					{
-						$this->verbose("Case {$index}{$d} is a non-matching case, running off-branch...\n",4);
-						$this->run_off_branch_code($case->stmts,$node,$index);
+						$this->verbose("Case {$index}{$d} is a non-matching case, running off-branch...\n",0);
+                        // Mark a rerun point
+                        // if (!in_array($case, $this->skip_conditions)) {
+                        //     $this->add_rerun_point($case);
+                        //     $this->run_off_branch_code($case->stmts,$node,$index);
+                        // }
+                        $this->process_count++;
+                        if (!pcntl_fork()) {
+                            $this->fork_info = [$this->current_file => $this->current_line];
+                            $this->is_child = true;
+                            $this->verbose(strcolor(
+                                sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                                ,"light green"),0);
+                            $this->run_code($case->stmts);
+                            // loop_condition reduces the number of breaks, it needs to be here
+                            if ($this->loop_condition()) {
+                                $done=true;
+                            }
+                        }
 					}
-
 				}
 				// if (!empty($stmts))
 				// 	foreach ($stmts as $st)
 				// 		$this->run_code($st);
-				return ;
+				return;
 			}
 		}
 		// if (!$this->concolic)
