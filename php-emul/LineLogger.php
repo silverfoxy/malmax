@@ -26,7 +26,7 @@ class LineLogger
             case ($node instanceof Node\Stmt\While_):
                 // Log only the condition of the branch
                 $start_line = $node->getAttribute('startLine');
-                $end_line = $node->getAttribute('endLine');
+                $end_line = $node->getAttribute('startLine');
                 // $log_entry =  sprintf('%s: %s-%s'.PHP_EOL, $current_file, $node->cond->getAttribute('startLine'), $node->cond->getAttribute('endLine'));
                 break;
             case ($node instanceof Node\Stmt\ElseIf_):

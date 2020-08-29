@@ -11,6 +11,7 @@ require_once __DIR__."/PHP-Parser/lib/bootstrap.php";
 use PhpParser\Lexer;
 use PhpParser\Node;
 use PhpParser\Parser;
+use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
 
 require_once "emulator-variables.php";
@@ -73,7 +74,7 @@ class Emulator
 		,'execution_context_stack' //all previous contexts, i.e. all current_* vars
 		,'data'
 		]);
-		$this->parser = new Parser(new Lexer);
+		$this->parser = (new ParserFactory())->create(ParserFactory::PREFER_PHP5);
 		$this->printer = new Standard;
     	$this->init($init_environ, $predefined_constants);
         $this->lineLogger = new LineLogger();
@@ -83,6 +84,10 @@ class Emulator
 	use EmulatorFunctions;
 	use EmulatorExpression;
 	use EmulatorStatement;
+
+	public $child_pids = [];
+
+	public $parent_pid = -1;
 
 	public LineLogger $lineLogger;
 
@@ -875,6 +880,36 @@ class Emulator
 		if ($this->return)
 			$this->return=false;
 		// $this->current_file=$last_file;
+        // Handle concurrency
+        // Wait for other forks of concolic execution to catch up
+        if (isset($this->parent_pid)) { // If there was any fork going on
+            $pid = getmypid();
+            foreach ($this->child_pids as $child_pid) {
+                $this->verbose($pid.' is waiting for '.$child_pid.PHP_EOL);
+                $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
+                if ($returned_pid !== -1) { // If there was a child, merge the information
+                    // Merge information from children
+                    // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
+                    // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
+                    $data = $this->read_and_delete_shmop($child_pid);
+                    $info = unserialize($data, [false]);
+                    // $this->verbose(print_r($info, true).PHP_EOL);
+                    // Merge fork info
+                    $this->merge_fork_info($info['fork_info']);
+                    // Merge coverage info
+                    $this->merge_line_coverage($info['line_coverage']);
+                    // Merge output
+                    $this->merge_output($info['output']);
+                }
+            }
+            if ($this->is_child) { // If this is the child process
+                $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
+                $this->write_shmop($pid, serialize($data));
+                // $this->verbose('Writing '.$pid.' child of '.$this->parent_pid.PHP_EOL);
+                exit(0);
+            }
+        }
+        // $this->verbose('Final merge: '.getmypid().PHP_EOL.print_r($this->lineLogger->coverage_info, true));
 		return $res;
 	}
 	/**
@@ -995,8 +1030,6 @@ class Emulator
 			    //     echo $node_type . ':' . $node->getAttribute('startLine') . PHP_EOL;
                 // }
 				$this->run_statement($node);
-				// Wait for other forks of concolic execution to catch up
-				pcntl_wait($status);
 			}
 			catch (Exception $e)
 			{
@@ -1014,6 +1047,7 @@ class Emulator
 			if ($this->continue) break;
 		}
 		$this->current_statement_index=null;
+
 	}	
 
 	/**
@@ -1064,6 +1098,49 @@ class Emulator
 		$this->verbose(sprintf("Memory usage: %.2fMB (%.2fMB)\n",memory_get_usage()/1024.0/1024.0,memory_get_peak_usage()/1024.0/1024.0));
 	}
 
+    function read_and_delete_shmop($id) {
+        $shm_id = shmop_open($id, "a", 0, 0);
+        if(!$shm_id) {
+            echo 'Failed to read shmem'.PHP_EOL;
+        }
+        $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
+        shmop_delete($shm_id);
+        shmop_close($shm_id);
+        return $sh_data;
+    }
+
+    function write_shmop($id, string $data) {
+        $shm_id = shmop_open($id, "c", 0644, strlen($data));
+        if (!$shm_id) {
+            echo "Couldn't create shared memory segment".PHP_EOL;
+        } else {
+            if(shmop_write($shm_id, $data, 0) != strlen($data)) {
+                echo "Couldn't write shared memory data".PHP_EOL;
+            }
+        }
+    }
+
+    function merge_line_coverage($coverage_info) {
+	    foreach ($coverage_info as $filename => $lines) {
+            // $this->verbose(print_r($this->lineLogger->coverage_info[$filename], true));
+            // $this->verbose(print_r($coverage_info[$filename], true));
+            foreach ($lines as $line => $covered) {
+	            $this->lineLogger->coverage_info[$filename][$line] = true;
+            }
+        }
+    }
+
+    function merge_fork_info($fork_info) {
+        foreach ($fork_info as $filename => $lines) {
+            foreach ($lines as $line => $forked) {
+                $this->fork_info[$filename][$line] = true;
+            }
+        }
+    }
+
+    function merge_output($output) {
+	    $this->output .= $output;
+    }
 }
 //this loads all mock functions, so that auto-mock will replace them
 foreach (glob(__DIR__."/mocks/*.php") as $mock)

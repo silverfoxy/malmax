@@ -297,7 +297,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 		$this->verbose($msg." in ".$this->current_file." on line ".$this->current_line.PHP_EOL,0);
 		if ($details)
 		{
-			print_r($node);
+			// print_r($node);
 			if ($this->verbose>=2)
 			{
 				$this->verbose("Emulator Backtrace:\n");
@@ -837,7 +837,6 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 				$stmts=null;
 				$done=false;
 				// Check if any of the branches are concrete
-
                 $none_symbolic = true;
                 $is_symbolic = false;
 				$main_branch_condition = $this->evaluate_expression($node->cond, $is_symbolic);
@@ -888,14 +887,21 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 if (!$done)
 				{
                     $this->process_count++;
-                    if (!pcntl_fork()) {
-                        $this->fork_info = [$this->current_file => $this->current_line];
+                    $pid = getmypid();
+                    $child_pid = pcntl_fork();
+                    if ($child_pid !== 0) {
+                        $this->child_pids[] = $child_pid;
+                    }
+                    else {
+                        $this->child_pids = [];
+                        $this->parent_pid = $pid;
+                        $this->fork_info[$this->current_file][$this->current_line] = true;
                         $this->is_child = true;
                         $this->verbose(strcolor(
-                            sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                            sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->parent_pid, getmypid(), $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
                             ,"light green"),0);
-				        $stmts = $node->stmts;
-				        $done = true;
+                        $stmts = $node->stmts;
+                        $done = true;
                     }
 					// array_push($this->active_conditions,$this->print_ast($node->cond));
 					// // Add node to covered nodes
@@ -917,11 +923,18 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         if ($branch_conditions[$this->statement_id($elseif)] instanceof SymbolicVariable) {
                             // Only run the branches that rely on the symbolic value
                             $this->process_count++;
-                            if (!pcntl_fork()) {
-                                $this->fork_info = [$this->current_file => $this->current_line];
+                            $pid = getmypid();
+                            $child_pid = pcntl_fork();
+                            if ($child_pid !== 0) {
+                                $this->child_pids[] = $child_pid;
+                            }
+                            else {
+                                $this->child_pids = [];
+                                $this->parent_pid = $pid;
+                                $this->fork_info[$this->current_file][$this->current_line] = true;
                                 $this->is_child = true;
                                 $this->verbose(strcolor(
-                                    sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                                    sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->parent_pid, getmypid(), $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
                                     ,"light green"),0);
                                 if (isset($elseif->cond)) {
                                     $condition = $this->print_ast($elseif->cond);
@@ -1008,34 +1021,46 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                     foreach ($node->cases as $case) {
                         if ($case->cond === null) { // If default branch, do not fork
                             $this->verbose(strcolor(
-                                sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(),$this->current_file, $this->current_line)
-                                ,"light green"),0);
+                                sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(), $this->current_file, $this->current_line)
+                                , "light green"), 0);
                             $this->run_code($case->stmts);
-                            $done=true;
+                            $done = true;
                             // To take care of the last break
                             $this->loop_condition();
                             break;
                         }
                         // If not default branch, fork for each case
                         $this->process_count++;
-                        $pid = true;
+                        $pid = getmypid();
                         if (!$run_next_case) {
-                            $pid = pcntl_fork();
-                        }
-                        if (!$pid || $run_next_case) {
-                            if(!$pid) {
+                            $child_pid = pcntl_fork();
+                            if ($child_pid !== 0) {
+                                $this->child_pids[] = $child_pid;
+                            }
+                            else {
+                                $this->child_pids = [];
+                                $this->parent_pid = $pid;
                                 $this->is_child = true;
                                 $this->verbose(strcolor(
-                                    sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
-                                    ,"light green"),0);
+                                    sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
+                                    , "light green"), 0);
+                                $this->run_code($case->stmts);
+                                // loop_condition reduces the number of breaks, it needs to be here
+                                if ($this->loop_condition()) {
+                                    $done = true;
+                                    break;
+                                } else {
+                                    $run_next_case = true;
+                                }
                             }
+                        }
+                        else {
                             $this->run_code($case->stmts);
                             // loop_condition reduces the number of breaks, it needs to be here
                             if ($this->loop_condition()) {
-                                $done=true;
+                                $done = true;
                                 break;
-                            }
-                            else {
+                            } else {
                                 $run_next_case = true;
                             }
                         }
@@ -1065,22 +1090,34 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             $this->process_count++;
                             $pid = true;
                             if (!$run_next_case) {
-                                $pid = pcntl_fork();
-                            }
-                            if (!$pid || $run_next_case) {
-                                if(!$pid) {
+                                $child_pid = pcntl_fork();
+                                if ($child_pid !== 0) {
+                                    $this->child_pids[] = $child_pid;
+                                }
+                                else {
+                                    $this->child_pids = [];
+                                    $this->parent_pid = $pid;
                                     $this->is_child = true;
                                     $this->verbose(strcolor(
-                                        sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
-                                        ,"light green"),0);
+                                        sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
+                                        , "light green"), 0);
+                                    $this->run_code($case->stmts);
+                                    // loop_condition reduces the number of breaks, it needs to be here
+                                    if ($this->loop_condition()) {
+                                        $done = true;
+                                        break;
+                                    } else {
+                                        $run_next_case = true;
+                                    }
                                 }
+                            }
+                            else {
                                 $this->run_code($case->stmts);
                                 // loop_condition reduces the number of breaks, it needs to be here
                                 if ($this->loop_condition()) {
-                                    $done=true;
+                                    $done = true;
                                     break;
-                                }
-                                else {
+                                } else {
                                     $run_next_case = true;
                                 }
                             }
@@ -1156,11 +1193,18 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         //     $this->run_off_branch_code($case->stmts,$node,$index);
                         // }
                         $this->process_count++;
-                        if (!pcntl_fork()) {
-                            $this->fork_info = [$this->current_file => $this->current_line];
+                        $pid = getmypid();
+                        $child_pid = pcntl_fork();
+                        if ($child_pid !== 0) {
+                            $this->child_pids[] = $child_pid;
+                        }
+                        else {
+                            $this->child_pids = [];
+                            $this->parent_pid = $pid;
+                            $this->fork_info[$this->current_file][$this->current_line] = true;
                             $this->is_child = true;
                             $this->verbose(strcolor(
-                                sprintf("(%d) Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
+                                sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n",$this->process_count, $this->parent_pid, getmypid(), $this->statement_id(),$this->current_file, $this->current_line, $this->off_branch)
                                 ,"light green"),0);
                             $this->run_code($case->stmts);
                             // loop_condition reduces the number of breaks, it needs to be here

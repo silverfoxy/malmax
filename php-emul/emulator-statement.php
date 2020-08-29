@@ -55,7 +55,7 @@ trait EmulatorStatement
 		{
 			$done=false;
 			if ($this->evaluate_expression($node->cond))
-			{
+			{$pid = getmypid();
 				$done=true;
 				$this->run_code($node->stmts);
 			}
@@ -348,6 +348,8 @@ trait EmulatorStatement
 		;
 		elseif ($node instanceof Node\Expr)
 			$this->evaluate_expression($node);
+		elseif ($node instanceof Node\Stmt\Nop)
+        ;
 		else
 		{
 			$this->error("Unknown node type: ",$node);	
