@@ -348,6 +348,8 @@ trait EmulatorStatement
 		;
 		elseif ($node instanceof Node\Expr)
 			$this->evaluate_expression($node);
+		elseif ($node instanceof Node\Stmt\Expression)
+            $this->evaluate_expression($node->expr);
 		elseif ($node instanceof Node\Stmt\Nop)
         ;
 		else

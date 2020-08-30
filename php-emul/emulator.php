@@ -757,6 +757,8 @@ class Emulator
 			return $this->evaluate_expression($ast);
 		elseif ($ast instanceof Node\Expr) //name can be any expr..., or can it?
 			return $this->evaluate_expression($ast);
+		elseif ($ast instanceof Node\Identifier)
+            return $ast->name;
 		else
 			$this->error("Can not determine name: ",$ast);
 	}
