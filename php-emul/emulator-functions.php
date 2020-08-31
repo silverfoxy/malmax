@@ -327,9 +327,6 @@ trait EmulatorFunctions
 	{
 	    // If its a Symbolic function, return a Symbol.
         // If its Symbolic if the args are symbolic, wait for args to be resolved.
-        if ($name == 'mysqli_num_rows') {
-            echo 'Called mysqli_num_rows'.PHP_EOL;
-        }
         if (isset($this->symbolic_functions) && in_array($name, $this->symbolic_functions)) {
             return new SymbolicVariable($name);
         }
