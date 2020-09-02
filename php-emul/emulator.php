@@ -401,7 +401,13 @@ class Emulator
 	 */
 	function stash_ob()
 	{
-		$this->isob=ob_get_level()!=0;
+	    // When the code is executed from phpunit, the ob level is expected to be 1 compared to 0 when executed directly from the cli
+	    if (EXECUTED_FROM_PHPUNIT) {
+            $this->isob=ob_get_level()!=1;
+        }
+	    else {
+            $this->isob=ob_get_level()!=0;
+        }
 		if ($this->isob) $this->output(ob_get_clean());
 	}
 	function restore_ob()
@@ -723,7 +729,7 @@ class Emulator
 		elseif ($ast instanceof Node\Scalar)
 			return $ast->value;
 		elseif ($ast instanceof Node\Param)
-			return $ast->name;
+			return $ast->name ?? $ast->var->name;
 		elseif ($ast instanceof Node\Stmt\Namespace_ 
 			)
 		{
@@ -907,12 +913,12 @@ class Emulator
             if ($this->is_child) { // If this is the child process
                 $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
                 $this->write_shmop($pid, serialize($data));
-                // $this->verbose('Writing '.$pid.' child of '.$this->parent_pid.PHP_EOL);
+                $this->verbose('Writing '.$pid.' child of '.$this->parent_pid.PHP_EOL);
                 exit(0);
             }
         }
         // $this->verbose('Final merge: '.getmypid().PHP_EOL.print_r($this->lineLogger->coverage_info, true));
-		return $res;
+        return $res;
 	}
 	/**
 	 * Starts the emulation
