@@ -344,6 +344,8 @@ trait EmulatorExpression {
 		{
 			if ($node instanceof Node\Scalar\String_)
 				return $node->value;
+			elseif ($node instanceof Node\Scalar\EncapsedStringPart)
+                return $node->value;
 			elseif ($node instanceof Node\Scalar\DNumber)
 				return $node->value;
 			elseif ($node instanceof Node\Scalar\LNumber)

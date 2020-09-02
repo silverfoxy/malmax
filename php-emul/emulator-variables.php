@@ -79,6 +79,9 @@ trait EmulatorVariables
                         return null;
                     }
                 }
+                elseif (in_array($key, $this->symbolic_parameters)) {
+                    return new SymbolicVariable($key);
+                }
                 return $r[$key];
             }
             elseif ($r instanceof SymbolicVariable) {
@@ -105,12 +108,21 @@ trait EmulatorVariables
             }
         }
 		else {
-		    if (in_array($node->name, $this->symbolic_parameters)) {
-                return new SymbolicVariable($node->name);
+		    $node_name = $this->get_variableـname($node);
+		    if (in_array($node_name, $this->symbolic_parameters)) {
+                return new SymbolicVariable($node_name);
             }
             return null;
         }
 	}
+	function get_variableـname($node) {
+	    if ($node instanceof Node\Expr\ArrayDimFetch) {
+	        return $this->get_variableـname($node->var);
+        }
+	    else {
+	        return $node->name;
+        }
+    }
 	/**
 	 * Check whether or not a variable exists
 	 * @param  Node $node 
