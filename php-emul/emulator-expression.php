@@ -533,8 +533,32 @@ trait EmulatorExpression {
 		}
 		elseif ($node instanceof Node\Expr\Ternary)
 		{
-			if ($this->evaluate_expression($node->cond)) return $this->evaluate_expression($node->if);
-			else return $this->evaluate_expression($node->else);
+		    $expr_result = $this->evaluate_expression($node->cond);
+		    if ($expr_result instanceof SymbolicVariable) {
+                $this->process_count++;
+                $pid = getmypid();
+                $child_pid = pcntl_fork();
+                if ($child_pid !== 0) {
+                    $this->child_pids[] = $child_pid;
+                    return $this->evaluate_expression($node->if);
+                }
+                else {
+                    $this->child_pids = [];
+                    $this->parent_pid = $pid;
+                    $this->is_child = true;
+                    $this->verbose(strcolor(
+                        sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
+                        , "light green"), 0);
+                    return $this->evaluate_expression($node->else);
+                }
+            }
+		    else {
+                if ($this->evaluate_expression($node->cond))
+                    return $this->evaluate_expression($node->if);
+                else
+                    return $this->evaluate_expression($node->else);
+            }
+
 		}
 		elseif ($node instanceof Node\Expr\Closure)
 		{
