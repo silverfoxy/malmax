@@ -402,7 +402,7 @@ class Emulator
 	function stash_ob()
 	{
 	    // When the code is executed from phpunit, the ob level is expected to be 1 compared to 0 when executed directly from the cli
-	    if (EXECUTED_FROM_PHPUNIT) {
+	    if (!$this->is_child && EXECUTED_FROM_PHPUNIT) {
             $this->isob=ob_get_level()!=1;
         }
 	    else {
