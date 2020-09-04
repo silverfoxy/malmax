@@ -126,16 +126,20 @@ trait EmulatorExpression {
 		}
 		elseif ($node instanceof Node\Expr\Cast)
 		{
+		    $expr = $this->evaluate_expression($node->expr);
+		    if ($expr instanceof SymbolicVariable) {
+		        return $expr;
+            }
 			if ($node instanceof Node\Expr\Cast\Int_)
-				return (int)$this->evaluate_expression($node->expr, $is_symbolic);
+				return (int)$expr;
 			elseif ($node instanceof Node\Expr\Cast\Array_)
-				return (array)$this->evaluate_expression($node->expr, $is_symbolic);
+				return (array)$expr;
 			elseif ($node instanceof Node\Expr\Cast\Double)
-				return (double)$this->evaluate_expression($node->expr, $is_symbolic);
+				return (double)$expr;
 			elseif ($node instanceof Node\Expr\Cast\Bool_)
-				return (bool)$this->evaluate_expression($node->expr, $is_symbolic);
+				return (bool)$expr;
 			elseif ($node instanceof Node\Expr\Cast\String_)
-				return (string)$this->evaluate_expression($node->expr, $is_symbolic);
+				return (string)$expr;
 			// elseif ($node instanceof Node\Expr\Cast\Object_)
 			// 	return (object)$this->evaluate_expression($node->expr);
 			else
