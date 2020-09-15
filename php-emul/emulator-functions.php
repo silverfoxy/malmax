@@ -278,9 +278,16 @@ trait EmulatorFunctions
 
 		#FIXME: not all output in the duration of core function execution is that functions output,
 		#		control might come back to emulator and verbose and others used. Do something.
-		if (ob_get_level()==0) ob_start();	
+		if (EXECUTED_FROM_PHPUNIT && ob_get_level() == 1) {
+            ob_start();
+        }
+        elseif (ob_get_level()==0) {
+		    ob_start();
+        }
 		$ret=call_user_func_array($name,$argValues); //core function
-		if (ob_get_level()>0) $this->output(ob_get_clean());
+		if (ob_get_level() > 0) {
+		    $this->output(ob_get_clean());
+        }
 		return $ret;
 	}
 	protected function run_mocked_core_function($name,$argValues)
