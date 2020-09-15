@@ -295,18 +295,21 @@ trait EmulatorFunctions
 	}
 	protected function run_core_function($name,$args)
 	{
-        if (isset($this->input_sensitive_symbolic_functions) && in_array($name, $this->input_sensitive_symbolic_functions)) {
-            $a = 'check prologue';
-        }
 		$argValues=$this->core_function_prologue($name,$args); #this has to be before the trace line,
-        // if $args is Symbolic then return symbol
-        if (isset($this->input_sensitive_symbolic_functions) && in_array($name, $this->input_sensitive_symbolic_functions)) {
-            foreach ($argValues as $arg) {
-                if ($arg instanceof SymbolicVariable) {
-                    return new SymbolicVariable($name);
-                }
+        // If any of the function arguments is Symbolic then return symbol
+        foreach ($argValues as $arg) {
+            if ($arg instanceof SymbolicVariable) {
+                return new SymbolicVariable($name);
             }
         }
+        // Currently, we do not support input sensitive symbolic functions
+        // if (isset($this->input_sensitive_symbolic_functions) && in_array($name, $this->input_sensitive_symbolic_functions)) {
+        //     foreach ($argValues as $arg) {
+        //         if ($arg instanceof SymbolicVariable) {
+        //             return new SymbolicVariable($name);
+        //         }
+        //     }
+        // }
 		if ($this->terminated) return null;
 		array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,"args"=>$argValues));
 		if (isset($this->mock_functions[strtolower($name)])) { //mocked

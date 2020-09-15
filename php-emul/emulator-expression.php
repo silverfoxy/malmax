@@ -208,9 +208,6 @@ trait EmulatorExpression {
 		elseif ($node instanceof Node\Expr\BinaryOp)
 		{
 			$l=$this->evaluate_expression($node->left, $is_symbolic); #can't eval right here, prevents short circuit reliant code
-            if ($is_symbolic) {
-                return new SymbolicVariable();
-            }
             if (!($node instanceof Node\Expr\BinaryOp\BooleanAnd ||
                   $node instanceof Node\Expr\BinaryOp\BooleanOr  ||
                   $node instanceof Node\Expr\BinaryOp\LogicalAnd ||
@@ -254,7 +251,6 @@ trait EmulatorExpression {
                 return $l == $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotEqual) {
-			    echo 'is symbolic: ' . ($is_symbolic ? 'true' : 'false') . PHP_EOL;
                 return $l != $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Smaller) {
@@ -284,7 +280,6 @@ trait EmulatorExpression {
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalOr) {
                 if ($l) {
                     return true;
-
                 }
                 else {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
@@ -298,7 +293,7 @@ trait EmulatorExpression {
                 return $l xor $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BooleanOr) {
-			    if ($l) {
+			    if ($l && !$l instanceof SymbolicVariable) {
 			        return true;
                 }
 			    else {

@@ -55,7 +55,8 @@ trait EmulatorStatement
 		{
 			$done=false;
 			if ($this->evaluate_expression($node->cond))
-			{$pid = getmypid();
+			{
+			    $pid = getmypid();
 				$done=true;
 				$this->run_code($node->stmts);
 			}

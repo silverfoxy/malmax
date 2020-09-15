@@ -402,13 +402,19 @@ class Emulator
 	function stash_ob()
 	{
 	    // When the code is executed from phpunit, the ob level is expected to be 1 compared to 0 when executed directly from the cli
-	    if (!$this->is_child && EXECUTED_FROM_PHPUNIT) {
-            $this->isob=ob_get_level()!=1;
+        if (EXECUTED_FROM_PHPUNIT) {
+            if (!$this->is_child) {
+                $this->isob=ob_get_level()!=1;
+            }
+            else {
+                $this->isob=false;
+            }
         }
 	    else {
             $this->isob=ob_get_level()!=0;
         }
-		if ($this->isob) $this->output(ob_get_clean());
+		if ($this->isob)
+		    $this->output(ob_get_clean());
 	}
 	function restore_ob()
 	{
@@ -1108,9 +1114,9 @@ class Emulator
 
     function read_and_delete_shmop($id) {
         $shm_id = shmop_open($id, "a", 0, 0);
-        if(!$shm_id) {
-            echo 'Failed to read shmem'.PHP_EOL;
-        }
+        // if(!$shm_id) {
+        //     echo 'Failed to read shmem'.PHP_EOL;
+        // }
         $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
         shmop_delete($shm_id);
         shmop_close($shm_id);
@@ -1119,13 +1125,13 @@ class Emulator
 
     function write_shmop($id, string $data) {
         $shm_id = shmop_open($id, "c", 0644, strlen($data));
-        if (!$shm_id) {
-            echo "Couldn't create shared memory segment".PHP_EOL;
-        } else {
-            if(shmop_write($shm_id, $data, 0) != strlen($data)) {
-                echo "Couldn't write shared memory data".PHP_EOL;
-            }
-        }
+        // if (!$shm_id) {
+        //     echo "Couldn't create shared memory segment".PHP_EOL;
+        // } else {
+        //     if(shmop_write($shm_id, $data, 0) != strlen($data)) {
+        //         echo "Couldn't write shared memory data".PHP_EOL;
+        //     }
+        // }
     }
 
     function merge_line_coverage($coverage_info) {
