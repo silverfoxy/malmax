@@ -69,7 +69,7 @@ trait EmulatorExpression {
 				// 	because it wants to assign $resArray[1] to $b. Thus we use index here.
 				$index=0;
 				$outArray=[];
-				foreach ($node->var->vars as $var)
+				foreach ($node->var->items as $var)
 				{
 					if (!isset($resArray[$index]))
 						$this->notice("Undefined offset: {$index}");
@@ -145,17 +145,35 @@ trait EmulatorExpression {
 			else
 				$this->error("Unknown cast: ",$node);
 		}
-		elseif ($node instanceof Node\Expr\BooleanNot)
-			return !$this->evaluate_expression($node->expr, $is_symbolic);
-
-		elseif ($node instanceof Node\Expr\BitwiseNot)
-			return ~$this->evaluate_expression($node->expr, $is_symbolic);
+		elseif ($node instanceof Node\Expr\BooleanNot) {
+            $expr = $this->evaluate_expression($node->expr);
+            if ($expr instanceof SymbolicVariable) {
+                return new SymbolicVariable();
+            }
+            return !$this->evaluate_expression($expr, $is_symbolic);
+        }
+		elseif ($node instanceof Node\Expr\BitwiseNot) {
+            $expr = $this->evaluate_expression($node->expr);
+            if ($expr instanceof SymbolicVariable) {
+                return new SymbolicVariable();
+            }
+            return ~$this->evaluate_expression($expr, $is_symbolic);
+        }
 		
-		elseif ($node instanceof Node\Expr\UnaryMinus)
-			return -$this->evaluate_expression($node->expr, $is_symbolic);
-		elseif ($node instanceof Node\Expr\UnaryPlus)
-			return +$this->evaluate_expression($node->expr, $is_symbolic);
-
+		elseif ($node instanceof Node\Expr\UnaryMinus) {
+            $expr = $this->evaluate_expression($node->expr);
+            if ($expr instanceof SymbolicVariable) {
+                return new SymbolicVariable();
+            }
+            return -$this->evaluate_expression($expr, $is_symbolic);
+        }
+		elseif ($node instanceof Node\Expr\UnaryPlus) {
+            $expr = $this->evaluate_expression($node->expr);
+            if ($expr instanceof SymbolicVariable) {
+                return new SymbolicVariable();
+            }
+            return +$this->evaluate_expression($expr, $is_symbolic);
+        }
 		elseif ($node instanceof Node\Expr\PreInc)
 		{
 			return $this->variable_set($node->var,$this->variable_get($node->var)+1);	
@@ -217,11 +235,6 @@ trait EmulatorExpression {
                 if ($is_symbolic) {
                     return new SymbolicVariable();
                 }
-            }
-            if ($l instanceof SymbolicVariable || (isset($r) && $r instanceof SymbolicVariable)) {
-                echo 'This is the one '.PHP_EOL;
-                var_dump($l);
-                var_dump($r);
             }
 			// $r=$this->evaluate_expression($node->right);
 			if ($node instanceof Node\Expr\BinaryOp\Plus) {
@@ -425,9 +438,13 @@ trait EmulatorExpression {
 		}
 		elseif ($node instanceof Node\Expr\Empty_)
 		{
+		    $expr_value = $this->evaluate_expression($node->expr, $is_symbolic);
+		    if ($expr_value instanceof SymbolicVariable) {
+		        return new SymbolicVariable();
+            }
 			//return true if not isset, or if false. only supports variables, and not expressions
 			$this->error_silence();
-			$res=(!$this->variable_isset($node->expr) or ($this->evaluate_expression($node->expr, $is_symbolic)==false));
+			$res=(!$this->variable_isset($node->expr) or ($expr_value==false));
 			$this->error_restore();
 			return $res;
 		}

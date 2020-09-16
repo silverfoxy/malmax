@@ -685,11 +685,14 @@ class Emulator
 		{
 			return $this->symbol_table($node->name,$key,$create);
 		}
+		elseif ($node instanceof Node\Expr\ArrayItem) {
+		    return $this->symbol_table($node->value->name, $key, $create);
+        }
 		elseif ($node instanceof Node\Expr)
 		{
 			#TODO: temporary variable for symbol table to return... think of a workaround?
 			#Fatal error: Can't use function return value in write context
-			$hack=array('temp'=>$this->evaluate_expression($node))	;
+			$hack=array('temp'=>$this->evaluate_expression($node));
 			$key='temp';
 			return $hack;
 		}
@@ -1114,9 +1117,9 @@ class Emulator
 
     function read_and_delete_shmop($id) {
         $shm_id = shmop_open($id, "a", 0, 0);
-        // if(!$shm_id) {
-        //     echo 'Failed to read shmem'.PHP_EOL;
-        // }
+        if(!$shm_id) {
+            echo 'Failed to read shmem'.PHP_EOL;
+        }
         $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
         shmop_delete($shm_id);
         shmop_close($shm_id);
@@ -1125,13 +1128,13 @@ class Emulator
 
     function write_shmop($id, string $data) {
         $shm_id = shmop_open($id, "c", 0644, strlen($data));
-        // if (!$shm_id) {
-        //     echo "Couldn't create shared memory segment".PHP_EOL;
-        // } else {
-        //     if(shmop_write($shm_id, $data, 0) != strlen($data)) {
-        //         echo "Couldn't write shared memory data".PHP_EOL;
-        //     }
-        // }
+        if (!$shm_id) {
+            echo "Couldn't create shared memory segment".PHP_EOL;
+        } else {
+            if(shmop_write($shm_id, $data, 0) != strlen($data)) {
+                echo "Couldn't write shared memory data".PHP_EOL;
+            }
+        }
     }
 
     function merge_line_coverage($coverage_info) {

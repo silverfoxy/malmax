@@ -35,11 +35,6 @@ trait EmulatorVariables
 	 */
 	function variable_set($node,$value=null)
 	{
-	    if ($node === 'query' || $node === 'user' || $node === 'pass' || $node === 'result') {
-	        $a = 'look into this node';
-	        echo $node.PHP_EOL;
-	        var_dump($value);
-        }
 		$r=&$this->symbol_table($node,$key,true);
 		if ($key!==null)
 			return $r[$key]=$value;
