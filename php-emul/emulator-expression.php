@@ -606,6 +606,8 @@ trait EmulatorExpression {
 			return $closure;
 
 		}
+		elseif (!is_object($node))
+            return $node;
 		else
 			$this->error("Unknown expression node: ",$node);
 		return null;

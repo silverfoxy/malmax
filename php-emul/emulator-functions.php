@@ -58,8 +58,13 @@ trait EmulatorFunctions
 		{
 			if ($index>=$count) //all explicit arguments processed, remainder either defaults or error
 			{
-				if (isset($param->default))
-					$function_variables[$param->name]=$this->evaluate_expression($param->default);
+                if (isset($param->name))
+                    $param_name = $param->name;
+                else
+                    $param_name = $param->var->name;
+				if (isset($param->default)) {
+					$function_variables[$param_name]=$this->evaluate_expression($param->default);
+                }
 				else
 				{
 					$this->warning("Missing argument ".($index)." for {$name}()");

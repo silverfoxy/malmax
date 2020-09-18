@@ -85,6 +85,8 @@ class Emulator
 	use EmulatorExpression;
 	use EmulatorStatement;
 
+	public $symbolic_loop_iterations;
+
 	public $child_pids = [];
 
 	public $parent_pid = -1;
@@ -662,17 +664,22 @@ class Emulator
 
 				$base=&$base[$index];
 			}
-			if ($create) 
-				if ($key===null) #$a[...][...][]=x //add mode
-				{
-					$base[]=null;
-					end($base);
-					$key=key($base);
-				}
-				elseif (!isset($base[$key])) //non-existent index
-					$base[$key]=null;
+			if ($create) {
+                if ($key instanceof SymbolicVariable) {
+                    $key = $key->variable_name;
+                }
+                if ($key===null) #$a[...][...][]=x //add mode
+                {
+                    $base[]=null;
+                    end($base);
+                    $key=key($base);
+                }
+                elseif (!isset($base[$key])) //non-existent index
+                    $base[$key]=null;
+            }
 
-            if (!$create && (in_array($key, $this->symbolic_parameters) || in_array($key2, $this->symbolic_parameters))) {
+
+            if (!$create && (in_array(strval($key), $this->symbolic_parameters) || in_array(strval($key2), $this->symbolic_parameters))) {
                 $symbol = new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
                 return $symbol;
             }

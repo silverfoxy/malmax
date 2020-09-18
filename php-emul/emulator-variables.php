@@ -79,7 +79,7 @@ trait EmulatorVariables
                         return null;
                     }
                 }
-                elseif (in_array($key, $this->symbolic_parameters)) {
+                elseif (in_array(strval($key), $this->symbolic_parameters)) {
                     return new SymbolicVariable($key);
                 }
                 return $r[$key];
@@ -176,9 +176,8 @@ trait EmulatorVariables
 			return $r[$key]; //if $r[$key] does not exist, will be created in byref use.
 		}
 		elseif ($r instanceof SymbolicVariable) {
-		    // TODO: Double check the side effects of this implementation
-            $success=false;
-            return $this->null_reference();
+            $success=true;
+            return $r;
         }
 		else
 		{
