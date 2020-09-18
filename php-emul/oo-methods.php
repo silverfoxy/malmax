@@ -326,7 +326,21 @@ trait OOEmulatorMethods {
 		$argValues=$this->core_function_prologue($method_name,$args,$class); #this has to be before the trace line, 
 		if ($this->terminated) return null;
 		#TODO: add mocked class/methods
-		
+        // Check for symbolic methods
+        $class_function_name = $class_name.'/'.$method_name;
+        if (in_array($class_function_name, $this->symbolic_methods)) {
+            // Method is symbolic, return a symbol
+            return new SymbolicVariable($class_function_name);
+        }
+        elseif (in_array($class_function_name, $this->input_sensitive_symbolic_methods)) {
+            // Method is input sensitive symbolic
+            foreach ($argValues as $arg) {
+                if ($arg instanceof SymbolicVariable) {
+                    // If any of the args are symbolic, the method would become symbolic
+                    return new SymbolicVariable($class_function_name);
+                }
+            }
+        }
 		if ($object!==null) //method
 		{
 			$this->verbose("Core method has a bound object, calling...\n",4);

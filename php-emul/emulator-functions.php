@@ -153,6 +153,7 @@ trait EmulatorFunctions
 		$processed_args=$this->user_function_prologue($name,$function->params,$args);
 		if ($processed_args===false)
 			return null;
+
 		$backups=[];
 		//IMPORTANT: these context and backtrace should be set AFTER prologue and BEFORE function execution,
 		//because prologue might have expressions that reference the current context.
