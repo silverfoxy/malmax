@@ -60,6 +60,8 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
     public array $symbolic_parameters = [];
     public array $symbolic_functions = [];
     public array $input_sensitive_symbolic_functions = [];
+    public array $symbolic_methods = [];
+    public array $input_sensitive_symbolic_methods = [];
     public bool $is_child = false;
     public bool $diehard = false;
     public int $process_count = 1;

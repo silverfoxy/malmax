@@ -389,6 +389,9 @@ class OOEmulator extends Emulator
 			}
 			$this->verbose("Method call {$classname}::{$method_name}()".PHP_EOL,3);
 			$args=$node->args;
+			if ($object instanceof SymbolicVariable) {
+			    return new SymbolicVariable($method_name);
+            }
 			return $this->run_method($object,$method_name,$args);
 		}
 		elseif ($node instanceof Node\Expr\StaticCall)
