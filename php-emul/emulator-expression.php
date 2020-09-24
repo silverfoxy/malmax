@@ -51,13 +51,19 @@ trait EmulatorExpression {
 		}
 		elseif ($node instanceof Node\Expr\AssignRef)
 		{
-			if (!$this->variable_isset($node->expr)) //referencing creates
-				$this->variable_set($node->expr);
-			$originalVar=&$this->variable_reference($node->expr,$success);
-			if ($success)
-				$this->variable_set_byref($node->var,$originalVar);
-			else
-				$this->warning("Can not assign by reference, the referenced variable does not exist");
+		    $expr_value = $this->evaluate_expression($node->expr);
+		    if (!($expr_value instanceof SymbolicVariable)) {
+                if (!$this->variable_isset($node->expr)) //referencing creates
+                    $this->variable_set($node->expr);
+                $originalVar=&$this->variable_reference($node->expr,$success);
+                if ($success)
+                    $this->variable_set_byref($node->var,$originalVar);
+                else
+                    $this->warning("Can not assign by reference, the referenced variable does not exist");
+            }
+		    else {
+		        $this->variable_set($node->var, $expr_value);
+            }
 		}
 		elseif ($node instanceof Node\Expr\Assign)
 		{
@@ -311,16 +317,21 @@ trait EmulatorExpression {
                 }
 			    else {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
-                    if ($is_symbolic) {
+                    if ($r instanceof SymbolicVariable) {
                         return new SymbolicVariable();
                     }
-                    return $l || $r;
+                    elseif($l instanceof SymbolicVariable) {
+                        return new SymbolicVariable();
+                    }
+                    else {
+                        return $l || $r;
+                    }
                 }
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BooleanAnd) {
 			    if ($l) {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
-                    if ($is_symbolic) {
+                    if ($r instanceof SymbolicVariable) {
                         return new SymbolicVariable();
                     }
                     return $l && $r;
@@ -551,21 +562,19 @@ trait EmulatorExpression {
 		{
 		    $expr_result = $this->evaluate_expression($node->cond);
 		    if ($expr_result instanceof SymbolicVariable) {
-                $this->process_count++;
-                $pid = getmypid();
-                $child_pid = pcntl_fork();
-                if ($child_pid !== 0) {
-                    $this->child_pids[] = $child_pid;
-                    return $this->evaluate_expression($node->if);
+                $forked_process_info = $this->fork_execution();
+		        if ($forked_process_info !== false) {
+                    list($pid, $child_pid) = $forked_process_info;
+                    if ($child_pid === 0) {
+                        return $this->evaluate_expression($node->if);
+                    }
+                    else {
+                        return $this->evaluate_expression($node->else);
+                    }
                 }
-                else {
-                    $this->child_pids = [];
-                    $this->parent_pid = $pid;
-                    $this->is_child = true;
-                    $this->verbose(strcolor(
-                        sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
-                        , "light green"), 0);
-                    return $this->evaluate_expression($node->else);
+		        else {
+		            // Terminated
+		            return;
                 }
             }
 		    else {

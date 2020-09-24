@@ -324,6 +324,9 @@ class OOEmulator extends Emulator
 	{
 		$this->verbose("New instance of core class '{$classname}'\n",5);
 		$class=$classname;
+		if (in_array($classname, $this->symbolic_classes)) {
+		    return new SymbolicVariable($classname);
+        }
 		$mocked=isset($this->mock_classes[strtolower($classname)]);
 		if ($mocked)
 		{

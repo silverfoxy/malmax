@@ -36,8 +36,14 @@ trait EmulatorVariables
 	function variable_set($node,$value=null)
 	{
 		$r=&$this->symbol_table($node,$key,true);
-		if ($key!==null)
-			return $r[$key]=$value;
+		if ($key!==null) {
+		    if ($r instanceof SymbolicVariable || $key instanceof SymbolicVariable) {
+		        return new SymbolicVariable();
+            }
+		    else {
+                return $r[$key]=$value;
+            }
+        }
 		else 
 			return null;
 	}

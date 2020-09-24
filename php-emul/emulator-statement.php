@@ -112,7 +112,7 @@ trait EmulatorStatement
             $symbolic_iterations = $this->symbolic_loop_iterations;
             $expr_cond = $this->evaluate_expression($node->cond);
 			while ($expr_cond &&
-                   $expr_cond instanceof SymbolicVariable ? $symbolic_iterations-- > 0 : true)
+                   ($expr_cond instanceof SymbolicVariable ? $symbolic_iterations-- > 0 : true))
 			{
 				$i++;
 				$this->run_code($node->stmts);

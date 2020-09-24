@@ -6,7 +6,8 @@ namespace PHPEmul;
 #major TODO: do not use recursive function calls in emulator, instead have stacks of operations and have a central 
 #	function that loops over them and executes them. That way state can be saved and termination and other conditions are easy to control.
 
-require_once __DIR__."/PHP-Parser/lib/bootstrap.php";
+// require_once __DIR__."/PHP-Parser/lib/bootstrap.php";
+require_once __DIR__."/vendor/autoload.php";
 
 use PhpParser\Lexer;
 use PhpParser\Node;
@@ -78,6 +79,9 @@ class Emulator
 		$this->printer = new Standard;
     	$this->init($init_environ, $predefined_constants);
         $this->lineLogger = new LineLogger();
+        if(!defined('EXECUTED_FROM_PHPUNIT')) {
+            define('EXECUTED_FROM_PHPUNIT', false);
+        }
 	}
 	use EmulatorVariables;
 	use EmulatorErrors;
@@ -122,14 +126,14 @@ class Emulator
 	 * Configuration: inifite loop limit
 	 * @var integer
 	 */
-	public $infinite_loop	=	1000; 
+	public $infinite_loop	=	1000;
 	/**
 	 * Maximum PHP version fully supported by the emulator
 	 * this is the version that will be returned via phpversion()
 	 * @var integer
 	 */
 	// public $max_php_version	=	"5.4.45"; 
-	public $max_php_version	=	"7.0.3 "; 
+	public $max_php_version	=	"7.4.6 ";
 	/**
 	 * Configuration: whether to output directly, or just store it in $output
 	 * @var boolean
@@ -429,7 +433,7 @@ class Emulator
 	function init($init_environ, $predefined_constants=null)
 	{
 		$this->superglobals=array_flip(explode(",$",'_GET,$_POST,$_FILES,$_COOKIE,$_SESSION,$_SERVER,$_REQUEST,$_ENV,$GLOBALS'));
-		echo str_repeat("-",80),PHP_EOL;
+		// echo str_repeat("-",80),PHP_EOL;
 		if ($init_environ===null)
 		{
 			$init_environ=[];
@@ -1164,6 +1168,37 @@ class Emulator
 
     function merge_output($output) {
 	    $this->output .= $output;
+    }
+
+    protected function fork_execution(bool $always_fork = false) {
+        // Prevent duplicate forks
+	    if (!$always_fork
+            && (array_key_exists($this->current_file, $this->fork_info)
+                && array_key_exists($this->current_line, $this->fork_info[$this->current_file])
+                && $this->fork_info[$this->current_file][$this->current_line] === md5(json_encode($this->lineLogger->coverage_info)))) {
+            $this->verbose(strcolor(
+                sprintf("(%d) %d->%d (Stopping child process) Not forking at %s [%s:%s] (depth=%d) already covered...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
+                , "light green"));
+            // $this->terminated = true;
+            return false;
+        }
+        $this->process_count++;
+        $pid = getmypid();
+        $this->fork_info[$this->current_file][$this->current_line] = md5(json_encode($this->lineLogger->coverage_info));
+
+        $child_pid = pcntl_fork();
+        if ($child_pid !== 0) {
+            $this->child_pids[] = $child_pid;
+        }
+        else {
+            $this->child_pids = [];
+            $this->parent_pid = $pid;
+            $this->is_child = true;
+            $this->verbose(strcolor(
+                sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
+                , "light green"));
+        }
+        return array($pid, $child_pid);
     }
 }
 //this loads all mock functions, so that auto-mock will replace them

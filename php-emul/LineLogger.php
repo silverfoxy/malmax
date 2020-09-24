@@ -69,7 +69,7 @@ class LineLogger
         }
         $this->updateCoverageInfo($current_file, $start_line, $end_line);
         $log_entry =  sprintf('%s: %s-%s'.PHP_EOL, $current_file, $start_line, $end_line);
-        file_put_contents('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/index_logs.txt', $log_entry, FILE_APPEND);
+        file_put_contents('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/line_coverage_logs.txt', $log_entry, FILE_APPEND);
     }
 
     protected function updateCoverageInfo(string $current_file, int $start_line, int $end_line) {
