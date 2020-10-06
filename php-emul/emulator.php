@@ -3,12 +3,13 @@
 namespace PHPEmul;
 
 #TODO: isset returns false on null values. Replace with array_key_exists everywhere
-#major TODO: do not use recursive function calls in emulator, instead have stacks of operations and have a central 
+#major TODO: do not use recursive function calls in emulator, instead have stacks of operations and have a central
 #	function that loops over them and executes them. That way state can be saved and termination and other conditions are easy to control.
 
 // require_once __DIR__."/PHP-Parser/lib/bootstrap.php";
 require_once __DIR__."/vendor/autoload.php";
 
+use malmax\ExecutionMode;
 use PhpParser\Lexer;
 use PhpParser\Node;
 use PhpParser\Parser;
@@ -21,6 +22,7 @@ require_once "emulator-errors.php";
 require_once "emulator-expression.php";
 require_once "emulator-statement.php";
 require_once "LineLogger.php";
+require_once "Checkpoint.php";
 
 /**
  * Holds an execution context, used when switching context
@@ -51,13 +53,13 @@ class EmulatorExecutionContext
 	// public $method;
 	// public $class; //dynamic class
 	// public $self; //static class
-	
+
 	// //only available for bound methods
 	// public $this;
 }
 
 class Emulator
-{	
+{
 /**
 	 * Emulator constructor
 	 * init the emulator
@@ -75,7 +77,7 @@ class Emulator
 		,'execution_context_stack' //all previous contexts, i.e. all current_* vars
 		,'data'
 		]);
-		$this->parser = (new ParserFactory())->create(ParserFactory::PREFER_PHP5);
+		$this->parser = (new ParserFactory())->create(ParserFactory::PREFER_PHP7);
 		$this->printer = new Standard;
     	$this->init($init_environ, $predefined_constants);
         $this->lineLogger = new LineLogger();
@@ -89,6 +91,8 @@ class Emulator
 	use EmulatorExpression;
 	use EmulatorStatement;
 
+	public array $ast;
+
 	public $symbolic_loop_iterations;
 
 	public $child_pids = [];
@@ -96,6 +100,27 @@ class Emulator
 	public $parent_pid = -1;
 
 	public LineLogger $lineLogger;
+
+    public array $fork_info = [];
+    public array $symbolic_parameters = [];
+    public array $symbolic_functions = [];
+    public array $input_sensitive_symbolic_functions = [];
+    public array $symbolic_methods = [];
+    public array $symbolic_classes = [];
+    public array $input_sensitive_symbolic_methods = [];
+    public array $function_summaries = [];
+    public bool $is_child = false;
+    public bool $diehard = false;
+    public int $process_count = 1;
+
+    public int $execution_mode = ExecutionMode::OFFLINE;
+
+    public Emulator $last_checkpoint;
+    public array $last_checkpoint_ast = [];
+    public array $checkpoints = [];
+    public bool $checkpoint_restore_mode = false;
+    public int $active_checkpoint_node;
+    public array $overall_coverage_info = [];
 
 	/**
 	 * A data storage for use by mock functions and other
@@ -132,7 +157,7 @@ class Emulator
 	 * this is the version that will be returned via phpversion()
 	 * @var integer
 	 */
-	// public $max_php_version	=	"5.4.45"; 
+	// public $max_php_version	=	"5.4.45";
 	public $max_php_version	=	"7.4.6 ";
 	/**
 	 * Configuration: whether to output directly, or just store it in $output
@@ -215,18 +240,18 @@ class Emulator
 	public $constants=[];
 
 	/**
-	 * The parser object used by the emulator. 
+	 * The parser object used by the emulator.
 	 * @var [type]
 	 */
 	public $parser;
-	
+
 	/**
 	 * The depth of eval.
 	 * Everything eval is used, this is incremented. Allows us to know whether we're inside eval'd code or not.
 	 * @state
 	 * @var integer
 	 */
-	public $eval_depth=0; 
+	public $eval_depth=0;
 
 	/**
 	 * The variable stack (pushdown)
@@ -244,7 +269,7 @@ class Emulator
 	public $terminated=false;
 
 	/**
-	 * List of mocked functions. 
+	 * List of mocked functions.
 	 * Keys are original functions, values are mocked equivalents
 	 * @var array
 	 */
@@ -303,7 +328,7 @@ class Emulator
 	 * @state
 	 * @var array
 	 */
-	public $shutdown_functions=[]; 
+	public $shutdown_functions=[];
 	/**
 	 * Retains a list of active namespaces via "use" PHP statement
 	 * does not include the namespace we are in
@@ -369,7 +394,7 @@ class Emulator
 
 	/**
 	 * Output status messages of the emulator
-	 * @param  string  $msg       
+	 * @param  string  $msg
 	 * @param  integer $verbosity 1 is basic messages, 0 is always shown, higher means less important
 	 */
 	function verbose($msg,$verbosity=1)
@@ -395,7 +420,7 @@ class Emulator
 		}
 
 		if ($this->verbose>=$verbosity)
-			echo str_repeat("---",$verbosity)." ".$number." ".$msg;
+			echo str_repeat("---",$verbosity)." ".$number." ".sprintf("[%d] ", getmypid()).$msg;
 		$this->restore_ob();
 	}
 
@@ -409,11 +434,18 @@ class Emulator
 	{
 	    // When the code is executed from phpunit, the ob level is expected to be 1 compared to 0 when executed directly from the cli
         if (EXECUTED_FROM_PHPUNIT) {
-            if (!$this->is_child) {
-                $this->isob=ob_get_level()!=1;
+            if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                // $this->isob=ob_get_level()!=1;
+                $this->isob=ob_get_level()!=0;
             }
-            else {
-                $this->isob=false;
+            elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                if (!$this->is_child) {
+                    $this->isob=ob_get_level()!=1;
+                }
+                else {
+                    // $this->isob=false;
+                    $this->isob=ob_get_level()!=0;
+                }
             }
         }
 	    else {
@@ -424,7 +456,9 @@ class Emulator
 	}
 	function restore_ob()
 	{
-		if ($this->isob) ob_start();
+		if ($this->isob) {
+            ob_start();
+        }
 	}
 	/**
 	 * Initialize the emulator by setting environment variables (super globals)
@@ -486,13 +520,13 @@ class Emulator
 		$r="";
 		if (count($this->output_buffer))
 		{
-			$this->verbose("Dumping buffered output...".PHP_EOL);		
+			$this->verbose("Dumping buffered output...".PHP_EOL);
 			while (count($this->output_buffer))
 				$r.=array_shift($this->output_buffer);
 			$this->output($r);
 		}
 	}
-	
+
 	/**
 	 * Outputs the args
 	 * This is equal to calling echo from PHP
@@ -538,33 +572,33 @@ class Emulator
 		// unset($this->variable_stack[key($this->variable_stack)]);
 		$this->reference_variables_to_stack();
 	}
-	
+
 	/**
 	 * Returns the base array (symbol table) that the variable exists in, as well as the key in that array for the variable
-	 * 
-	 * 
-	 * @param  Node  $node   
+	 *
+	 *
+	 * @param  Node  $node
 	 * @param  byref  &$key  the key of the element, which will be null if not found
-	 * @param  boolean $create 
+	 * @param  boolean $create
 	 * @return reference          reference to the symbol table array (check key first before accessing this)
 	 */
 	protected function &symbol_table($node,&$key,$create)
 	{
 		if ($node===null)
 		{
-			$this->notice("Undefined variable (null node).");	
+			$this->notice("Undefined variable (null node).");
 			return $this->null_reference($key);
 		}
 		elseif (is_string($node))
 		{
 			if (array_key_exists($node, $this->variables))
 			{
-				$key=$node;	
+				$key=$node;
 				return $this->variables;
 			}
 			elseif ($node == "GLOBALS")
 			{
-				$key='global';	
+				$key='global';
 				return $this->variable_stack;
 			}
 			elseif (array_key_exists($node, $this->superglobals) //super globals
@@ -604,7 +638,7 @@ class Emulator
 			//each ArrayDimFetch has a var and a dim. var can either be a variable, or another ArrayDimFetch
 			$dim=0;
 			$indexes=[];
-			
+
 			//extracting indices
 			while ($t instanceof Node\Expr\ArrayDimFetch)
 			{
@@ -614,9 +648,9 @@ class Emulator
 					$ev=$this->evaluate_expression($t->dim);
 					//DISCREPENCY: a literal null index evaluates to empty string rather than
 					//	a null dim which means a[]=2;
-					if ($ev===null) 
+					if ($ev===null)
 						$ev="";
-					$indexes[]=$ev; 
+					$indexes[]=$ev;
 				}
 				else //implicit dimension
 					$indexes[]=null;
@@ -631,11 +665,11 @@ class Emulator
 			$key=array_pop($indexes);
 			if (is_string($base) and empty($indexes) and is_int($key)) //string arraydimfetch access
 				return $base; //already done
-			
-			if (is_scalar($base)) //arraydimfetch on scalar returns null 
+
+			if (is_scalar($base)) //arraydimfetch on scalar returns null
 				return $this->null_reference($key);
 
-			if (is_object($base) and !$base instanceof ArrayAccess)			
+			if (is_object($base) and !$base instanceof ArrayAccess)
 			{
 			    if ($base instanceof SymbolicVariable) {
 			        return $base;
@@ -660,7 +694,7 @@ class Emulator
 				elseif (!isset($base[$index]))
 					if ($create)
 					{
-						$this->verbose("Creating array index '{$index}'...".PHP_EOL,5);	
+						$this->verbose("Creating array index '{$index}'...".PHP_EOL,5);
 						$base[$index]=null;
 					}
 					else
@@ -716,7 +750,7 @@ class Emulator
 	/**
 	 * Resolves symbol name
 	 * e.g function calls, variables, etc.
-	 * @param  Node $ast 
+	 * @param  Node $ast
 	 * @return string      name
 	 */
 	protected function name($ast)
@@ -724,7 +758,7 @@ class Emulator
 		/**
 		 * namespaced names have a name that has an array of parts.
 		 * however, if it is FullyQualified (Node\Name\FullyQualified)
-		 * it will only have parts 
+		 * it will only have parts
 		 */
 
 		if (is_string($ast))
@@ -733,7 +767,7 @@ class Emulator
 		{
 			if (is_string($ast->name) or $ast->name instanceof Node\Name)
 				return $this->name($ast->name);
-			else 
+			else
 				return $this->evaluate_expression($ast->name);
 		}
 		elseif ($ast instanceof Node\Scalar\Encapsed)
@@ -750,7 +784,7 @@ class Emulator
 			return $ast->value;
 		elseif ($ast instanceof Node\Param)
 			return $ast->name ?? $ast->var->name;
-		elseif ($ast instanceof Node\Stmt\Namespace_ 
+		elseif ($ast instanceof Node\Stmt\Namespace_
 			)
 		{
 			if ($ast->name===null)
@@ -790,7 +824,7 @@ class Emulator
 	}
 	/**
 	 * Used on names that can be a namespace
-	 * @param  Node|String $node 
+	 * @param  Node|String $node
 	 * @return string
 	 */
 	function namespaced_name($node)
@@ -812,9 +846,9 @@ class Emulator
 	 */
 	private function fully_qualify_name($name)
 	{
-		if (!$this->namespaces_enabled) 
-			return $name; 
-		// if ($name[0]=="\\") 
+		if (!$this->namespaces_enabled)
+			return $name;
+		// if ($name[0]=="\\")
 		// {
 		// 	// $this->notice("FQ called on an already FQ name!")	;
 		// 	return $name; //fully qualified
@@ -839,7 +873,7 @@ class Emulator
 	 * }
 	 * namespace {
 	 * 	use X1\X2\X;
-	 * 	$o=new X; 
+	 * 	$o=new X;
 	 * }
 	 *
 	 * X in the last line is a normal name, but is a relative namespace and needs to be resolved.
@@ -864,10 +898,10 @@ class Emulator
 	 * Runs a PHP file
 	 * Basically it sets up current file and other state variables, reads the file,
 	 * parses it and passes the AST to run_code
-	 * @param  string $file 
-	 * @return mixed    
+	 * @param  string $file
+	 * @return mixed
 	 */
-	public function run_file($file)
+	public function run_file($file, $main_file = false)
 	{
 		// $last_file=$this->current_file;
 		$realfile=realpath($file);
@@ -896,45 +930,68 @@ class Emulator
 		$context->file=$realfile;
 		$context->line=1;
 		$this->context_switch($context);
-		$this->verbose(sprintf("Now running %s...\n",substr($this->current_file,strlen($this->folder)) ));
-		
+        // $this->verbose(sprintf("Now running %s...\n",substr($this->current_file,strlen($this->folder)) ));
+        $this->verbose(strcolor(sprintf("Now running %s...\n", $this->current_file), "light green"));
+
 		$this->included_files[$this->current_file]=true;
 
-		$ast=$this->parse($file);
-		$res=$this->run_code($ast);
-		$this->verbose(substr($this->current_file,strlen($this->folder))." finished.".PHP_EOL,2);
+		$this->ast = $this->parse($file);
+		$res = $this->run_code($this->ast);
+		// $this->verbose(strcolor(substr($this->current_file,strlen($this->folder))." finished.".PHP_EOL, "light green"));
+        $this->verbose(strcolor(sprintf("%s: %s finished.".PHP_EOL, getmypid(), $this->current_file), "light green"));
 		$this->context_restore();
-		
+
 		if ($this->return)
 			$this->return=false;
 		// $this->current_file=$last_file;
-        // Handle concurrency
-        // Wait for other forks of concolic execution to catch up
-        if (isset($this->parent_pid)) { // If there was any fork going on
-            $pid = getmypid();
-            foreach ($this->child_pids as $child_pid) {
-                $this->verbose($pid.' is waiting for '.$child_pid.PHP_EOL);
-                $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
-                if ($returned_pid !== -1) { // If there was a child, merge the information
-                    // Merge information from children
-                    // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
-                    // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
-                    $data = $this->read_and_delete_shmop($child_pid);
-                    $info = unserialize($data, [false]);
-                    // $this->verbose(print_r($info, true).PHP_EOL);
-                    // Merge fork info
-                    $this->merge_fork_info($info['fork_info']);
-                    // Merge coverage info
-                    $this->merge_line_coverage($info['line_coverage']);
-                    // Merge output
-                    $this->merge_output($info['output']);
-                }
+        if ($main_file && $this->execution_mode === ExecutionMode::OFFLINE) {
+            // Add coverage info to $overall_coverage_info
+            $this->overall_coverage_info = $this->merge_line_coverage($this->lineLogger->coverage_info);
+            // Pick the next candidate to execute
+            while (sizeof($this->checkpoints) > 0) {
+                $next_checkpoint = array_pop($this->checkpoints);
+                $engine = $next_checkpoint->checkpoint_context;
+                $engine->overall_coverage_info = $this->overall_coverage_info;
+                $engine->checkpoint_restore_mode = true;
+                $engine->run_code($engine->last_checkpoint_ast, true, $engine->active_checkpoint_index);
+                $this->overall_coverage_info = $this->merge_line_coverage($engine->lineLogger->coverage_info);
+                $this->output .= $engine->output;
+                $engine->shutdown();
             }
-            if ($this->is_child) { // If this is the child process
-                $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
-                $this->write_shmop($pid, serialize($data));
-                $this->verbose('Writing '.$pid.' child of '.$this->parent_pid.PHP_EOL);
-                exit(0);
+            // Return since there are no more candidates
+            return $res;
+        }
+        elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+            // Handle concurrency
+            // Merge child coverage and fork information
+            foreach ($this->child_pids as $child_pid) {
+                // $this->verbose('Merging '.$child_pid.PHP_EOL);
+                $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
+                // Merge information from children
+                // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
+                // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
+                $data = $this->read_and_delete_shmop($child_pid);
+                $info = unserialize($data, [false]);
+                // $this->verbose(print_r($info, true).PHP_EOL);
+                // Merge fork info
+                $this->merge_fork_info($info['fork_info']);
+                // Merge coverage info
+                $this->merge_line_coverage($info['line_coverage']);
+                // Merge output
+                $this->merge_output($info['output']);
+            }
+            // Wait for other forks of concolic execution to catch up
+            if (isset($this->parent_pid)) { // If there was any fork going on
+                $pid = getmypid();
+                if ($this->is_child) { // If this is the child process
+                    $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
+                    $this->write_shmop($pid, serialize($data));
+                    foreach ($this->lineLogger->raw_logs as $entry) {
+                        file_put_contents(sprintf('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info).serialize($this->variables))), $entry, FILE_APPEND);
+                    }
+                    gc_collect_cycles();
+                    exit(0);
+                }
             }
         }
         // $this->verbose('Final merge: '.getmypid().PHP_EOL.print_r($this->lineLogger->coverage_info, true));
@@ -944,9 +1001,9 @@ class Emulator
 	 * Starts the emulation
 	 * A php file should be given here
 	 * Current directory and other variables are set up here
-	 * @param  string  $file  
+	 * @param  string  $file
 	 * @param  boolean $chdir whether to change dir to the file's location or not
-	 * @return mixed         
+	 * @return mixed
 	 */
 	function start($file,$chdir=true)
 	{
@@ -963,25 +1020,28 @@ class Emulator
 		ini_set("memory_limit",-1);
 		set_error_handler(array($this,"error_handler"));
 		// set_exception_handler(array($this,"exception_handler")); //exception handlers can not return. they terminate the program.
-		$res=$this->run_file($this->entry_file);
+		$res=$this->run_file($this->entry_file, true);
 		$this->shutdown();
 		// restore_exception_handler();
+        if (EXECUTED_FROM_PHPUNIT && ob_get_level() === 0) {
+            ob_start();
+        }
 		restore_error_handler();
 		chdir($this->original_dir);
 		return $res;
 	}
-	
+
 	/**
 	 * Extracts declarations in AST node
 	 * Constants and function definitions are extracted before code is executed
-	 * @param  Node $node 
+	 * @param  Node $node
 	 */
 	protected function get_declarations($node)
 	{
 		if (0);
 		elseif ($node instanceof Node\Stmt\Namespace_)
 		{
-			if (!$this->namespaces_enabled) 
+			if (!$this->namespaces_enabled)
 				$this->error("Namespace support is disabled. Please enabled it in the emulator and rerun");
 			$this->current_namespace=$this->name($node);
 			$this->verbose("Extracting declarations of namespace '{$this->current_namespace}'...\n",2);
@@ -1004,20 +1064,20 @@ class Emulator
 					$this->error("Cannot use {$name} as {$alias} because the name is already in use");
 				$this->current_active_namespaces[strtolower($alias)]=$name;
 			}
-		}		
+		}
 		elseif ($node instanceof Node\Stmt\Function_)
 		{
 			$name=$this->current_namespace($this->name($node->name));
 			$index=strtolower($name);
 			$context=new EmulatorExecutionContext(['function'=>$name,'file'=>$this->current_file,'namespace'=>$this->current_namespace,'active_namespaces'=>$this->current_active_namespaces]);
-			$this->functions[$index]=(object)array("params"=>$node->params,"code"=>$node->stmts,'context'=>$context,'statics'=>[]); 
-				
+			$this->functions[$index]=(object)array("params"=>$node->params,"code"=>$node->stmts,'context'=>$context,'statics'=>[]);
+
 		}
 
 	}
 	/**
 	 * Returns only file name of a full path, for messaging
-	 * @param  string $file 
+	 * @param  string $file
 	 * @return string
 	 */
 	private function filename_only($file=null)
@@ -1026,63 +1086,119 @@ class Emulator
 			$file=$this->current_file;
 		return substr($file,strlen($this->folder));
 	}
+	public function run_ast($save_checkpoint=true, $continue_from=null) {
+        //first pass, get all definitions
+        foreach ($this->ast as $node)
+            $this->get_declarations($node);
+        while ($node = array_pop($this->ast)) {
+            if (isset($continue_from)) {
+                // Skip nodes until we reach our checkpoint
+                if ($node !== $this->active_checkpoint_node) {
+                    continue;
+                }
+                else {
+                    $continue_from = null;
+                }
+            }
+            if ($node->getLine()!=$this->current_line)
+            {
+                $this->current_line=$node->getLine();
+                if ($this->verbose)
+                    $this->verbose(sprintf("%s:%d\n",$this->filename_only(),$this->current_line),3);
+            }
+            $this->statement_count++;
+            // Log line coverage information
+            try
+            {
+                $node_type = get_class($node);
+                $this->lineLogger->logNodeCoverage($node, $this->current_file);
+                if ($save_checkpoint) {
+                    $this->store_checkpoint_context($this->ast, $node);
+                }
+                $this->run_statement($node);
+            }
+            catch (Exception $e)
+            {
+                $this->throw_exception($e);
+            }
+            catch (Error $e) //php 7. fortunately, even though Error is not a class, this will not err in PHP 5
+            {
+                // throw $e;
+                // $this->throw_exception($e); //should be throw_error, throw_exception relies on type
+                $this->exception_handler($e);
+            }
+            if ($this->terminated) return null;
+            if ($this->return) return $this->return_value;
+            if ($this->break) break;
+            if ($this->continue) break;
+
+            $this->current_statement_index=null;
+        }
+    }
 	/**
 	 * Runs an AST as code.
 	 * It basically loops over statements and runs them.
-	 * @param  Node $ast 
+	 * @param  Node $ast
 	 */
 	public function run_code($ast)
 	{
 		//first pass, get all definitions
         foreach ($ast as $node)
             $this->get_declarations($node);
-
 		foreach ($ast as $index=>$node)
 		{
-			$this->current_statement_index=$index;
+		    if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                $this->current_statement_index=$index;
+                if (isset($continue_from)) {
+                    if ($index !== $this->active_checkpoint_node) {
+                        continue;
+                    }
+                    else {
+                        $continue_from = null;
+                    }
+                }
+            }
+            if ($node->getLine()!=$this->current_line)
+            {
+                $this->current_line=$node->getLine();
+                if ($this->verbose)
+                    $this->verbose(sprintf("%s:%d\n",$this->filename_only(),$this->current_line),3);
+            }
+            $this->statement_count++;
+            // Log line coverage information
+            try
+            {
+                $node_type = get_class($node);
+                $this->lineLogger->logNodeCoverage($node, $this->current_file);
+                if ($this->execution_mode === ExecutionMode::OFFLINE && $save_checkpoint) {
+                    $this->store_checkpoint_context($ast, $index);
+                }
+                $this->run_statement($node);
+            }
+            catch (Exception $e)
+            {
+                $this->throw_exception($e);
+            }
+            catch (Error $e) //php 7. fortunately, even though Error is not a class, this will not err in PHP 5
+            {
+                // throw $e;
+                // $this->throw_exception($e); //should be throw_error, throw_exception relies on type
+                $this->exception_handler($e);
+            }
+            if ($this->terminated) return null;
+            if ($this->return) return $this->return_value;
+            if ($this->break) break;
+            if ($this->continue) break;
 
-			if ($node->getLine()!=$this->current_line)
-			{
-				$this->current_line=$node->getLine();
-				if ($this->verbose) 
-					$this->verbose(sprintf("%s:%d\n",$this->filename_only(),$this->current_line),3);
-			}
-			$this->statement_count++;
-			// Log line coverage information
-			try 
-			{
-			    $node_type = get_class($node);
-			    $this->lineLogger->logNodeCoverage($node, $this->current_file);
-			    // LineLogger::LogNodeCoverage($node, $this->current_file);
-			    // if (strpos($this->current_file, 'autoload_static') !== false && $node instanceof PhpParser\Node\Stmt\Return_) {
-			    //     echo $node_type . ':' . $node->getAttribute('startLine') . PHP_EOL;
-                // }
-				$this->run_statement($node);
-			}
-			catch (Exception $e)
-			{
-				$this->throw_exception($e);
-			}
-			catch (Error $e) //php 7. fortunately, even though Error is not a class, this will not err in PHP 5
-			{
-				// throw $e;
-				// $this->throw_exception($e); //should be throw_error, throw_exception relies on type
-				$this->exception_handler($e); 
-			}			
-			if ($this->terminated) return null;
-			if ($this->return) return $this->return_value;
-			if ($this->break) break;
-			if ($this->continue) break;
-		}
-		$this->current_statement_index=null;
-
-	}	
+            $this->current_statement_index=null;
+        }
+	}
 
 	/**
 	 * Returns the AST of a PHP file to emulator
 	 * attempts to cache the AST and re-use
-	 * @param  string $file 
-	 * @return array       
+	 * @param  string $file
+	 * @return array
 	 */
 	protected function parse($file)
 	{
@@ -1106,10 +1222,10 @@ class Emulator
 		}
 		return $ast;
 	}
-	
+
 	/**
 	 * Converts an AST to printable PHP code.
-	 * @param  Node|Array $ast 
+	 * @param  Node|Array $ast
 	 * @return string
 	 */
 	function print_ast($ast)
@@ -1126,14 +1242,16 @@ class Emulator
 		$this->verbose(sprintf("Memory usage: %.2fMB (%.2fMB)\n",memory_get_usage()/1024.0/1024.0,memory_get_peak_usage()/1024.0/1024.0));
 	}
 
-    function read_and_delete_shmop($id) {
+    function read_and_delete_shmop($id, $delete_shmop=true) {
         $shm_id = shmop_open($id, "a", 0, 0);
         if(!$shm_id) {
             echo 'Failed to read shmem'.PHP_EOL;
         }
         $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
-        shmop_delete($shm_id);
-        shmop_close($shm_id);
+        if ($delete_shmop) {
+            shmop_delete($shm_id);
+            shmop_close($shm_id);
+        }
         return $sh_data;
     }
 
@@ -1156,39 +1274,82 @@ class Emulator
 	            $this->lineLogger->coverage_info[$filename][$line] = true;
             }
         }
+	    return $this->lineLogger->coverage_info;
     }
 
     function merge_fork_info($fork_info) {
         foreach ($fork_info as $filename => $lines) {
-            foreach ($lines as $line => $forked) {
-                $this->fork_info[$filename][$line] = true;
+            foreach ($lines as $line => $md5_hashes) {
+                foreach ($md5_hashes as $md5) {
+                    if (array_key_exists($filename, $this->fork_info)
+                        && array_key_exists($line, $this->fork_info[$filename])) {
+                        if (!(in_array($md5, $this->fork_info[$filename][$line]))) {
+                            $this->fork_info[$filename][$line][] = $md5;
+                        }
+                    }
+                   else {
+                       $this->fork_info[$filename][$line] = [$md5];
+                    }
+                }
             }
         }
     }
 
     function merge_output($output) {
 	    $this->output .= $output;
+	    if (strlen($this->output) > 1000) {
+            $this->output = substr($this->output, -1000);
+        }
     }
 
     protected function fork_execution(bool $always_fork = false) {
         // Prevent duplicate forks
+        $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variables));
+        // echo "md5: $md5_current_state".PHP_EOL;
+        // echo "nd5: ".print_r($this->fork_info[$this->current_file][$this->current_line], true).PHP_EOL;
 	    if (!$always_fork
             && (array_key_exists($this->current_file, $this->fork_info)
                 && array_key_exists($this->current_line, $this->fork_info[$this->current_file])
-                && $this->fork_info[$this->current_file][$this->current_line] === md5(json_encode($this->lineLogger->coverage_info)))) {
+                && in_array($md5_current_state, $this->fork_info[$this->current_file][$this->current_line]))) {
             $this->verbose(strcolor(
                 sprintf("(%d) %d->%d (Stopping child process) Not forking at %s [%s:%s] (depth=%d) already covered...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
                 , "light green"));
             // $this->terminated = true;
             return false;
         }
+        $this->fork_info[$this->current_file][$this->current_line][] = $md5_current_state;
+	    // echo serialize(($this->variables)).PHP_EOL;
+	    // echo json_encode($this->lineLogger->coverage_info).PHP_EOL;
+	    // $md5 = md5(json_encode($this->lineLogger->coverage_info) . strval(serialize($this->variables)));
+	    // echo "md5: $md5".PHP_EOL;
         $this->process_count++;
         $pid = getmypid();
-        $this->fork_info[$this->current_file][$this->current_line] = md5(json_encode($this->lineLogger->coverage_info));
-
+        foreach ($this->child_pids as $child_pid) {
+            $this->verbose(strcolor($pid.' is waiting for '.$child_pid.PHP_EOL, "light green"));
+            $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
+            if ($returned_pid !== -1) { // If there was a child, merge the information
+                $this->process_count--;
+                // Merge information from children
+                // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
+                // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
+                $data = $this->read_and_delete_shmop($child_pid, false);
+                // $data = $this->read_and_delete_shmop($child_pid);
+                $info = unserialize($data, [false]);
+                // $this->verbose(print_r($info, true).PHP_EOL);
+                // Merge fork info
+                $this->merge_fork_info($info['fork_info']);
+                // Merge coverage info
+                $this->merge_line_coverage($info['line_coverage']);
+                // Merge output
+                $this->merge_output($info['output']);
+            }
+        }
         $child_pid = pcntl_fork();
         if ($child_pid !== 0) {
             $this->child_pids[] = $child_pid;
+            // if (isset($this->parent_pid)) { // If there was any fork going on
+            //
+            // }
         }
         else {
             $this->child_pids = [];
@@ -1199,6 +1360,16 @@ class Emulator
                 , "light green"));
         }
         return array($pid, $child_pid);
+    }
+
+    protected function store_checkpoint_context($ast, $node) {
+        $this->last_checkpoint_ast = $ast;
+        $this->active_checkpoint_node = $node;
+	    $this->last_checkpoint = deep_copy($this);
+	}
+
+	protected function &get_checkpoint_context() {
+	    return $this->last_checkpoint;
     }
 }
 //this loads all mock functions, so that auto-mock will replace them

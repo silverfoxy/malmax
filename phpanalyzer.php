@@ -27,6 +27,8 @@ function timer($what=-1)
 }
 require_once dirname(__FILE__)."/php-emul/oo.php";
 
+use PHPEmul\Checkpoint;
+use PHPEmul\LineLogger;
 use PHPEmul\SymbolicVariable;
 use PhpParser\Node;
 if (!function_exists("set_magic_quotes_runtime"))
@@ -50,22 +52,18 @@ if (!function_exists("set_magic_quotes_runtime"))
 // 		return unserialize_mock($emul,$var);
 // }
 
+abstract class ExecutionMode {
+    const ONLINE = 1;
+    const OFFLINE = 2;
+}
+
 class PHPAnalyzer extends \PHPEmul\OOEmulator
 {
     /*
      * Includes the file and line information where this process was forked.
      * [file_name => line_number]
      */
-    public array $fork_info = [];
-    public array $symbolic_parameters = [];
-    public array $symbolic_functions = [];
-    public array $input_sensitive_symbolic_functions = [];
-    public array $symbolic_methods = [];
-    public array $symbolic_classes = [];
-    public array $input_sensitive_symbolic_methods = [];
-    public bool $is_child = false;
-    public bool $diehard = false;
-    public int $process_count = 1;
+
 	/**
 	 * A list of statements processed
 	 * @var array
@@ -368,8 +366,10 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 
 		if ($number and $this->off_branch>0)
 			$number="($number)";
-		if ($this->verbose>=$verbosity)
-			echo str_repeat("---",$verbosity)." ".$number." ".$msg;
+		if ($this->verbose>=$verbosity) {
+            // echo str_repeat("---",$verbosity)." ".$number." ".$msg;
+            echo str_repeat("---",$verbosity)." ".$number." ".sprintf("[%d] ", getmypid()).$msg;
+        }
 		$this->restore_ob();
 	}	
 
@@ -890,17 +890,36 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 				// if (!$done && !in_array($this->statement_id($this->cond), $this->skip_conditions)) //main branch was not factual, run it
                 if (!$done)
 				{
-                    $forked_process_info = $this->fork_execution();
-                    if ($forked_process_info !== false) {
-                        list($pid, $child_pid) = $forked_process_info;
-                        if ($child_pid === 0) {
+				    if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                        if ($this->checkpoint_restore_mode) {
+                            $this->checkpoint_restore_mode = false;
                             $stmts = $node->stmts;
                             $done = true;
                         }
+                        else {
+                            if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
+                                $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $node);
+                            }
+                            else {
+                                $this->terminated = true;
+                                return;
+                            }
+                        }
                     }
-                    else {
-                        // Terminated
-                        return;
+				    elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                        $forked_process_info = $this->fork_execution();
+                        if ($forked_process_info !== false) {
+                            list($pid, $child_pid) = $forked_process_info;
+                            if ($child_pid === 0) {
+                                $stmts = $node->stmts;
+                                // $this->verbose("Running if body ".$node->getStartLine().PHP_EOL);
+                                $done = true;
+                            }
+                        }
+                        else {
+                            // Terminated
+                            return;
+                        }
                     }
 				}
                 if (!$done) {
@@ -913,24 +932,46 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                     {
                         $index++;
                         if ($branch_conditions[$this->statement_id($elseif)] instanceof SymbolicVariable) {
-                            $forked_process_info = $this->fork_execution();
-                            if ($forked_process_info !== false) {
-                                list($pid, $child_pid) = $forked_process_info;
-                                if ($child_pid === 0) {
+                            if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                                if ($this->checkpoint_restore_mode) {
+                                    $this->checkpoint_restore_mode = false;
                                     if (isset($elseif->cond)) {
                                         $condition = $this->print_ast($elseif->cond);
-                                    }
-                                    else {
+                                    } else {
                                         $condition = 'else';
                                     }
                                     $stmts = $elseif->stmts;
                                     $done = true;
                                     break;
                                 }
+                                else {
+                                    if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
+                                        $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $elseif);
+                                    }
+                                    else {
+                                        $this->terminated = true;
+                                        return;
+                                    }
+                                }
                             }
-                            else {
-                                // Terminated
-                                return;
+                            elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                                $forked_process_info = $this->fork_execution();
+                                if ($forked_process_info !== false) {
+                                    list($pid, $child_pid) = $forked_process_info;
+                                    if ($child_pid === 0) {
+                                        if (isset($elseif->cond)) {
+                                            $condition = $this->print_ast($elseif->cond);
+                                        } else {
+                                            $condition = 'else';
+                                        }
+                                        $stmts = $elseif->stmts;
+                                        $done = true;
+                                        break;
+                                    }
+                                } else {
+                                    // Terminated
+                                    return;
+                                }
                             }
                         }
                     }
@@ -947,6 +988,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                     }
 					array_push($this->active_conditions,$condition);
 					$this->if_nesting++;
+                    // $this->verbose("Running the code inside if body ".$node->getStartLine().PHP_EOL);
 					$this->run_code($stmts);
 					$this->if_nesting--;
 					array_pop($this->active_conditions);
@@ -995,7 +1037,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             $this->verbose(strcolor(
                                 sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(), $this->current_file, $this->current_line)
                                 , "light green"), 0);
-                            $this->run_code($case->stmts);
+                            $this-> run_code($case->stmts);
                             if ($this->loop_condition()) {
                                 $done = true;
                                 break;
@@ -1003,10 +1045,9 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         }
                         // If not default branch, fork for each case
                         if (!$run_next_case) {
-                            $forked_process_info = $this->fork_execution(true);
-                            if ($forked_process_info !== false) {
-                                list($pid, $child_pid) = $forked_process_info;
-                                if ($child_pid === 0) {
+                            if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                                if ($this->checkpoint_restore_mode) {
+                                    $this->checkpoint_restore_mode = false;
                                     $this->run_code($case->stmts);
                                     // loop_condition reduces the number of breaks, it needs to be here
                                     if ($this->loop_condition()) {
@@ -1014,6 +1055,32 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                         break;
                                     } else {
                                         $run_next_case = true;
+                                    }
+                                }
+                                else {
+                                    if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
+                                        $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $case);
+                                    }
+                                    else {
+                                        $this->terminated = true;
+                                        return;
+                                    }
+                                }
+                            }
+                            elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                                $forked_process_info = $this->fork_execution(true);
+                                if ($forked_process_info !== false) {
+                                    list($pid, $child_pid) = $forked_process_info;
+                                    if ($child_pid === 0) {
+                                        $this->verbose(strcolor(sprintf("Covering %s line.".PHP_EOL, $case->getStartLine()), "light green"));
+                                        $this->run_code($case->stmts);
+                                        // loop_condition reduces the number of breaks, it needs to be here
+                                        if ($this->loop_condition()) {
+                                            $done = true;
+                                            break;
+                                        } else {
+                                            $run_next_case = true;
+                                        }
                                     }
                                 }
                             }
@@ -1054,10 +1121,9 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             $this->process_count++;
                             $pid = true;
                             if (!$run_next_case) {
-                                $forked_process_info = $this->fork_execution();
-                                if ($forked_process_info !== false) {
-                                    list($pid, $child_pid) = $forked_process_info;
-                                    if ($child_pid === 0) {
+                                if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                                    if ($this->checkpoint_restore_mode) {
+                                        $this->checkpoint_restore_mode = false;
                                         $this->run_code($case->stmts);
                                         // loop_condition reduces the number of breaks, it needs to be here
                                         if ($this->loop_condition()) {
@@ -1067,10 +1133,34 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                             $run_next_case = true;
                                         }
                                     }
+                                    else {
+                                        if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
+                                            $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $case);
+                                        }
+                                        else {
+                                            $this->terminated = true;
+                                            return;
+                                        }
+                                    }
                                 }
-                                else {
-                                    // Terminated
-                                    return;
+                                elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                                    $forked_process_info = $this->fork_execution();
+                                    if ($forked_process_info !== false) {
+                                        list($pid, $child_pid) = $forked_process_info;
+                                        if ($child_pid === 0) {
+                                            $this->run_code($case->stmts);
+                                            // loop_condition reduces the number of breaks, it needs to be here
+                                            if ($this->loop_condition()) {
+                                                $done = true;
+                                                break;
+                                            } else {
+                                                $run_next_case = true;
+                                            }
+                                        }
+                                    } else {
+                                        // Terminated
+                                        return;
+                                    }
                                 }
                             }
                             else {
@@ -1149,20 +1239,40 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 					else
 					{
 						$this->verbose("Case {$index}{$d} is a non-matching case, running off-branch...\n",0);
-                        $forked_process_info = $this->fork_execution();
-                        if ($forked_process_info !== false) {
-                            list($pid, $child_pid) = $forked_process_info;
-                            if ($child_pid === 0) {
+                        if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                            if ($this->checkpoint_restore_mode) {
+                                $this->checkpoint_restore_mode = false;
                                 $this->run_code($case->stmts);
                                 // loop_condition reduces the number of breaks, it needs to be here
                                 if ($this->loop_condition()) {
-                                    $done=true;
+                                    $done = true;
+                                }
+                            }
+                            else {
+                                if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
+                                    $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $case);
+                                }
+                                else {
+                                    $this->terminated = true;
+                                    return;
                                 }
                             }
                         }
-                        else {
-                            // Terminated
-                            return;
+                        elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                            $forked_process_info = $this->fork_execution();
+                            if ($forked_process_info !== false) {
+                                list($pid, $child_pid) = $forked_process_info;
+                                if ($child_pid === 0) {
+                                    $this->run_code($case->stmts);
+                                    // loop_condition reduces the number of breaks, it needs to be here
+                                    if ($this->loop_condition()) {
+                                        $done = true;
+                                    }
+                                }
+                            } else {
+                                // Terminated
+                                return;
+                            }
                         }
 					}
 				}
@@ -1277,4 +1387,60 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 		$this->postprocessing['iterations']=$iteration;
 		$this->off_branch_end();
 	}
+
+	protected function try_add_function_summary($function, $processed_args, $return_value) {
+	    return;
+        if ($return_value instanceof SymbolicVariable) {
+            $symbolic_return = true;
+            $symbolic_input = $this->is_function_arg_symbolic($processed_args);
+            // Get function name and file
+            $function_name = $function->context->function;
+            $file_name = $function->context->file;
+            // If code coverage is 100%
+            if ($symbolic_input || $this->has_full_coverage($function->code, $this->lineLogger->coverage_info[$file_name])) {
+                $this->function_summaries[$file_name][$function_name] = ['symbolic_input'=>$symbolic_input, 'symbolic_return'=>$symbolic_return];
+            }
+        }
+    }
+
+    protected function function_summary_exists($trace_args, $processed_args) {
+	    return false;
+        $function_name = $trace_args['function'];
+        $file_name = $this->current_file;
+	    if (array_key_exists($file_name, $this->function_summaries)
+            && array_key_exists($function_name, $this->function_summaries[$file_name])) {
+            $symbolic_input = $this->is_function_arg_symbolic($processed_args);
+            $function_summary = $this->function_summaries[$file_name][$function_name];
+            if ($function_summary['symbolic_input'] === $symbolic_input &&
+                $function_summary['symbolic_return']) {
+                return new SymbolicVariable($function_name);
+            }
+        }
+	    return false;
+    }
+
+    protected function is_function_arg_symbolic($processed_args) {
+        $symbolic_input = false;
+        if (sizeof($processed_args) === 0) {
+            return true;
+        }
+        foreach ($processed_args as $arg) {
+            if ($arg instanceof SymbolicVariable) {
+                $symbolic_input = true;
+                break;
+            }
+        }
+        return $symbolic_input;
+    }
+
+    protected function has_full_coverage($function_statements, $covered_lines) {
+	    foreach($function_statements as $statement) {
+	        for($line=$statement->getStartLine(); $line <= $statement->getEndLine(); $line++) {
+	            if (!array_key_exists($line, $covered_lines)) {
+	                return false;
+                }
+            }
+        }
+	    return true;
+    }
 }

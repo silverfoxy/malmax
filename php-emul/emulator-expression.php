@@ -2,6 +2,7 @@
 
 namespace PHPEmul;
 
+use malmax\ExecutionMode;
 use PhpParser\Node;
 
 class EmulatorClosure{};
@@ -244,44 +245,83 @@ trait EmulatorExpression {
             }
 			// $r=$this->evaluate_expression($node->right);
 			if ($node instanceof Node\Expr\BinaryOp\Plus) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l+$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Div) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l/$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Minus) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l-$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Mul) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l*$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Mod) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l % $r;
             }
 			// elseif ($node instanceof Node\Expr\BinaryOp\Pow)
 			// 	return $this->evaluate_expression($node->left)**$this->evaluate_expression($node->right);
 			elseif ($node instanceof Node\Expr\BinaryOp\Identical) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l === $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotIdentical) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l !== $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Equal) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l == $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotEqual) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l != $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Smaller) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l < $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\SmallerOrEqual) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l <= $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Greater) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l > $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\GreaterOrEqual) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l >= $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
@@ -341,21 +381,39 @@ trait EmulatorExpression {
                 }
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseAnd) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l & $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseOr) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l | $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseXor) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l ^ $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\ShiftLeft) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l << $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\ShiftRight) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l >> $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
                 return $l . $r;
             }
 			// elseif ($node instanceof Node\Expr\BinaryOp\Spaceship)
@@ -562,19 +620,35 @@ trait EmulatorExpression {
 		{
 		    $expr_result = $this->evaluate_expression($node->cond);
 		    if ($expr_result instanceof SymbolicVariable) {
-                $forked_process_info = $this->fork_execution();
-		        if ($forked_process_info !== false) {
-                    list($pid, $child_pid) = $forked_process_info;
-                    if ($child_pid === 0) {
+                if ($this->execution_mode === ExecutionMode::OFFLINE) {
+                    if ($this->checkpoint_restore_mode) {
+                        $this->checkpoint_restore_mode = false;
                         return $this->evaluate_expression($node->if);
                     }
                     else {
-                        return $this->evaluate_expression($node->else);
+                        if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
+                            $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $node->if);
+                            return $this->evaluate_expression($node->else);
+                        }
+                        else {
+                            $this->terminated = true;
+                            return;
+                        }
                     }
                 }
-		        else {
-		            // Terminated
-		            return;
+                elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                    $forked_process_info = $this->fork_execution();
+                    if ($forked_process_info !== false) {
+                        list($pid, $child_pid) = $forked_process_info;
+                        if ($child_pid === 0) {
+                            return $this->evaluate_expression($node->if);
+                        } else {
+                            return $this->evaluate_expression($node->else);
+                        }
+                    } else {
+                        // Terminated
+                        return;
+                    }
                 }
             }
 		    else {

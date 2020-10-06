@@ -36,6 +36,7 @@ trait EmulatorVariables
 	function variable_set($node,$value=null)
 	{
 		$r=&$this->symbol_table($node,$key,true);
+		// $this->verbose(strcolor($this->get_variableـname($node).PHP_EOL, "light green"));
 		if ($key!==null) {
 		    if ($r instanceof SymbolicVariable || $key instanceof SymbolicVariable) {
 		        return new SymbolicVariable();

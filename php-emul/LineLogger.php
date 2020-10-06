@@ -10,6 +10,7 @@ class LineLogger
      * Array [file_name => [ lines... ], ... ]
      */
     public array $coverage_info = [];
+    public array $raw_logs = [];
     public CONST LOGPATH = '/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/index_logs.txt';
     public function logNodeCoverage(Node $node, $current_file) {
         $log_entry = '';
@@ -61,6 +62,10 @@ class LineLogger
                 $end_line = $node->getAttribute('startLine');
                 // $log_entry =  sprintf('%s: %s-%s'.PHP_EOL, $current_file, $node->getAttribute('startLine'), $node->getAttribute('startLine'));
                 break;
+            case ($node instanceof Node\Stmt\Switch_):
+                $start_line = $node->getAttribute('startLine');
+                $end_line = $node->getAttribute('startLine');
+                break;
             default:
                 $start_line = $node->getAttribute('startLine');
                 $end_line = $node->getAttribute('endLine');
@@ -68,13 +73,46 @@ class LineLogger
                 break;
         }
         $this->updateCoverageInfo($current_file, $start_line, $end_line);
-        $log_entry =  sprintf('%s: %s-%s'.PHP_EOL, $current_file, $start_line, $end_line);
+        $file_name = str_replace('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/debloating_DVWA/web/', '', $current_file);
+        $log_entry =  sprintf('%s: %s-%s'.PHP_EOL, $file_name, $start_line, $end_line);
+        $this->raw_logs[] = $log_entry;
         file_put_contents('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/line_coverage_logs.txt', $log_entry, FILE_APPEND);
+    }
+
+    public function logFunctionCall(string $current_file, string $function_name, array $parameters) {
+        $print_parameters = '';
+        foreach($parameters as $param_name=>$param_value) {
+            $print_parameters .= sprintf('%s=%s, ', $param_name, print_r($param_value, true));
+        }
+        if (strlen($print_parameters) > 2) {
+            // Drop the last comma-space
+            $print_parameters = substr($print_parameters, 0, strlen($print_parameters) - 2);
+        }
+        $file_name = str_replace('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/debloating_DVWA/web/', '', $current_file);
+        $log_entry =  sprintf('%s: FuncCall-%s(%s)'.PHP_EOL, $file_name, $function_name, $print_parameters);
+        $this->raw_logs[] = $log_entry;
+        // file_put_contents('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/line_coverage_logs.txt', $log_entry, FILE_APPEND);
     }
 
     protected function updateCoverageInfo(string $current_file, int $start_line, int $end_line) {
         for($line_number = $start_line; $line_number <= $end_line; $line_number++) {
             $this->coverage_info[$current_file][$line_number] = true;
         }
+    }
+
+    public static function has_covered_new_lines(array $new_coverage_info, array $old_coverage_info) {
+        foreach ($new_coverage_info as $filename=>$lines) {
+            if (array_key_exists($filename, $old_coverage_info)) {
+                foreach ($lines as $line=>$covered) {
+                      if (!array_key_exists($line, $old_coverage_info[$filename])) {
+                          return true;
+                      }
+                }
+            }
+            else {
+                return true;
+            }
+        }
+        return false;
     }
 }

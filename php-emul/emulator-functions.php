@@ -153,7 +153,11 @@ trait EmulatorFunctions
 		$processed_args=$this->user_function_prologue($name,$function->params,$args);
 		if ($processed_args===false)
 			return null;
-
+		if ($function_summary = $this->function_summary_exists($trace_args, $processed_args)) {
+		    $this->verbose(strcolor(sprintf("Fetching %s:%s from function summaries.\n", $name, get_class($function_summary)), "light green"));
+		    return $function_summary;
+        }
+		$this->lineLogger->logFunctionCall($this->current_file, $name, $processed_args);
 		$backups=[];
 		//IMPORTANT: these context and backtrace should be set AFTER prologue and BEFORE function execution,
 		//because prologue might have expressions that reference the current context.
@@ -169,6 +173,7 @@ trait EmulatorFunctions
 		array_pop($this->trace);
 
 		$this->pop(); //pushed in prologue
+        $this->try_add_function_summary($function, $processed_args, $res);
 		return $res;
 	}
 	/**
