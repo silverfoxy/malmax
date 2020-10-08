@@ -433,6 +433,10 @@ class OOEmulator extends Emulator
 			$constant=$this->name($node->name);
 			if (class_exists($class))
 				return constant("{$class}::{$constant}");
+            // Special class constant, returns the fully qualified class name
+			if ($constant === 'class') {
+                return sprintf('%s\%s', $this->current_namespace, $class);
+            }
 			foreach ($this->ancestry($class) as $cls)
 			{
 				if (array_key_exists($constant, $this->classes[strtolower($cls)]->consts))
