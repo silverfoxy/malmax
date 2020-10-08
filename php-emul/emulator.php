@@ -1057,7 +1057,7 @@ class Emulator
 				$this->error("'use function/const' is not yet supported. Only 'use namespace' supported so far.");
 			foreach ($node->uses as $use)
 			{
-				$alias=$use->alias;
+				$alias=$use->alias ?? end($use->name->parts);
 				$name=$this->name($use->name);
 				$this->verbose("Aliasing namespace '{$name}' to '{$alias}'.\n",3);
 				if (array_key_exists(strtolower($alias),$this->current_active_namespaces))
