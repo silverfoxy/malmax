@@ -155,7 +155,7 @@ class OOEmulator extends Emulator
 			if (isset($node->type))
 				$classtype=$node->type;
 			$classname=$this->current_namespace($this->name($node->name));
-			$type=strtolower(substr(explode("\\",get_class($node))[3],0,-1)); #intertface, class, trait
+			$flags=strtolower(substr(explode("\\",get_class($node))[3],0,-1)); #intertface, class, trait
 			// $class_index=strtolower($this->namespace($classname));
 			$class_index=strtolower($classname);
 			$this->classes[$class_index]=new \stdClass;
@@ -178,7 +178,7 @@ class OOEmulator extends Emulator
 			$class->interfaces=[];
 			$class->traits=[];
 			$class->consts=[];
-			$class->type=$type;
+			$class->type=$flags;
 			$class->methods=[];
 			$class->properties=[];
 			$class->property_visibilities=[];
@@ -191,7 +191,7 @@ class OOEmulator extends Emulator
 			{
 				if ($part instanceof Node\Stmt\Property)
 				{
-					$type=$part->type; //1= public, 2=protected, 4=private, 8= static
+					$flags=$part->flags; //1= public, 2=protected, 4=private, 8= static
 					foreach ($part->props as $property)	
 					{
 						$propname=$this->name($property->name);
@@ -199,14 +199,14 @@ class OOEmulator extends Emulator
 							$val=$this->evaluate_expression($property->default);
 						else
 							$val=NULL;
-						if ($type & EmulatorObject::Visibility_Private)
+						if ($flags & EmulatorObject::Visibility_Private)
 							$visibility=EmulatorObject::Visibility_Private;
-						elseif ($type & EmulatorObject::Visibility_Protected)
+						elseif ($flags & EmulatorObject::Visibility_Protected)
 							$visibility=EmulatorObject::Visibility_Protected;
 						else
 							$visibility=EmulatorObject::Visibility_Public;
 
-						if ($type & 8 ) //static
+						if ($flags & 8 ) //static
 						{
 							$class->static[$propname]=$val;
 							$class->static_visibility[$propname]=$visibility;
@@ -218,17 +218,17 @@ class OOEmulator extends Emulator
 				}
 				elseif ($part instanceof Node\Stmt\ClassMethod)
 				{
-					$type=$part->type;
-					if ($type & EmulatorObject::Visibility_Private)
+					$flags=$part->flags;
+					if ($flags & EmulatorObject::Visibility_Private)
 						$visibility=EmulatorObject::Visibility_Private;
-					elseif ($type & EmulatorObject::Visibility_Protected)
+					elseif ($flags & EmulatorObject::Visibility_Protected)
 						$visibility=EmulatorObject::Visibility_Protected;
 					else
 						$visibility=EmulatorObject::Visibility_Public;
-					$static=$type&8;
+					$static=$flags&8;
 					$methodname=$this->name($part->name);
 					$class->methods[strtolower($methodname)]=(object)array('name'=>$methodname,"params"=>$part->params,"code"=>$part->stmts,
-							'type'=>$type,'statics'=>[],'visibility'=>$visibility,'static'=>$static); 
+							'type'=>$flags,'statics'=>[],'visibility'=>$visibility,'static'=>$static);
 				}
 				elseif ($part instanceof Node\Stmt\ClassConst)
 				{
@@ -642,7 +642,7 @@ class OOEmulator extends Emulator
 			$property_name=$this->name($node->name);
 			if ($this->ancestry($classname))
 			{
-				foreach($this->ancestry($classname)  as $class)
+				foreach($this->ancestry($classname) as $class)
 				{
 					if (array_key_exists($property_name,$this->classes[strtolower($class)]->static))
 					{
