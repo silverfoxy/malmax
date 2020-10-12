@@ -765,10 +765,15 @@ class Emulator
 			return $ast;
 		elseif ($ast instanceof Node\Expr\FuncCall)
 		{
-			if (is_string($ast->name) or $ast->name instanceof Node\Name)
-				return $this->name($ast->name);
-			else
-				return $this->evaluate_expression($ast->name);
+		    if ($ast->name instanceof Node\Name\FullyQualified) {
+                return $ast->name;
+            }
+			elseif (is_string($ast->name) or $ast->name instanceof Node\Name) {
+                return $this->name($ast->name);
+            }
+			else {
+                return $this->evaluate_expression($ast->name);
+            }
 		}
 		elseif ($ast instanceof Node\Scalar\Encapsed)
 		{
@@ -844,7 +849,7 @@ class Emulator
 	 * @param  string $name name, can be either simple or relative or fully qualified namespaced name
 	 * @return string
 	 */
-	private function fully_qualify_name($name)
+	protected function fully_qualify_name($name)
 	{
 		if (!$this->namespaces_enabled)
 			return $name;

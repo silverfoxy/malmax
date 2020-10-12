@@ -354,11 +354,17 @@ trait OOEmulatorMethods {
 			$this->verbose("Core method is static-like, calling...\n",4);
 			if (method_exists($class, $method_name))
 			{
-				$r=new ReflectionMethod($class,$method_name);
+				$r=new \ReflectionMethod($class,$method_name);
 				if ($r->isStatic())
 				{
 					array_push($this->trace, (object)array("type"=>"::","function"=>$method_name,"file"=>$this->current_file,"line"=>$this->current_line,"args"=>$argValues));
-					$ret=call_user_func_array($class."::".$method_name, $argValues);
+                    // Check if closure method is called
+                    if ($class === 'Closure' && $method_name === 'bind') {
+                        $closure = $argValues[0];
+                        $ret = call_user_func_array([$closure, $method_name], $argValues);
+                    }
+                    else //original function
+                        $ret=call_user_func_array($class."::".$method_name, $argValues);
 					array_pop($this->trace);
 				}
 				elseif ($this->current_this and $this->current_this->parent) //call with this

@@ -5,7 +5,68 @@ namespace PHPEmul;
 use malmax\ExecutionMode;
 use PhpParser\Node;
 
-class EmulatorClosure{};
+class EmulatorClosure {
+    public string $name;
+    public array $code;
+    public array $params;
+    public bool $static;
+    public bool $byRef;
+    public array $uses;
+    public $returnType;
+    public EmulatorExecutionContext $context;
+
+    public function __construct(string $name, array $code, array $params, bool $static, bool $byRef, array $uses, $returnType, EmulatorExecutionContext $context) {
+        $this->name = $name;
+        $this->code = $code;
+        $this->params = $params;
+        $this->static = $static;
+        $this->byRef = $byRef;
+        $this->uses = $uses;
+        $this->returnType = $returnType;
+        $this->context = $context;
+    }
+
+    public static function bind(EmulatorClosure $closure, ?object $newthis, $newscope='static') {
+        $closure = self::bind_object_and_scope($closure, $newthis, $newscope);
+        return $closure;
+    }
+
+    public function bindTo(?object $newthis, $newscope='static') {
+        $closure = self::bind_object_and_scope($this->closure, $newthis, $newscope);
+        return $closure;
+    }
+
+    public function call(?object $newthis, $params) {
+        trigger_error('fromCallable not implemented.', E_USER_ERROR);
+    }
+
+    public static function fromCallable(callable $callable) {
+        trigger_error('fromCallable not implemented.', E_USER_ERROR);
+        $closure = new EmulatorClosure();
+        $closure->name="{closure}";
+        $closure->code=$callable->stmts;
+        $closure->params=$callable->params;
+
+        $closure->static=false;
+        $closure->byref=false;
+        $closure->uses=[];
+        $closure->returnType=$callable->returnType;
+
+        $context=new EmulatorExecutionContext(['function'=>"{closure}"
+            ,'namespace'=>$callable->current_namespace,'active_namespaces'=>$callable->current_active_namespaces
+            ,'file'=>$callable->current_file,'line'=>$callable->current_line]);
+
+        $closure->context=$context;
+        return $closure;
+    }
+
+    protected static function bind_object_and_scope(EmulatorClosure $closure, ?object $newthis, $newscope='static') {
+        $closure->scope = $newscope;
+        $closure->bound_object = $newthis;
+        return $closure;
+    }
+
+};
 /**
  * Evaluates an expression for the emulator
  */
@@ -663,29 +724,20 @@ trait EmulatorExpression {
 		{
 			// print_r($node);
 			$this->verbose("Closure found, emulating...\n",3);
-			$closure=new EmulatorClosure;
-			$closure->name="{closure}";
-			$closure->code=$node->stmts;
-			$closure->params=$node->params;
-
-			$closure->static=$node->static;
-			$closure->byref=$node->byRef;
 			$uses=[];
 			foreach ($node->uses as $use)
 			{
+			    $var_name = $this->get_variableـname($use->var);
 				if ($use->byRef)
-					$uses[$use->var]=&$this->variable_reference($use->var);
+					$uses[$var_name]=&$this->variable_reference($use->var);
 				else
-					$uses[$use->var]=$this->variable_get($use->var);
+					$uses[$var_name]=$this->variable_get($use->var);
 			}
-			$closure->uses=$uses; 
-			$closure->returnType=$node->returnType;
-
 			$context=new EmulatorExecutionContext(['function'=>"{closure}"
 				,'namespace'=>$this->current_namespace,'active_namespaces'=>$this->current_active_namespaces
 				,'file'=>$this->current_file,'line'=>$this->current_line]);
 
-			$closure->context=$context;
+            $closure = new EmulatorClosure("{closure}", $node->stmts, $node->params, $node->static, $node->byRef, $uses, $node->returnType, $context);
 			return $closure;
 
 		}

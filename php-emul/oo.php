@@ -435,7 +435,7 @@ class OOEmulator extends Emulator
 				return constant("{$class}::{$constant}");
             // Special class constant, returns the fully qualified class name
 			if ($constant === 'class') {
-                return sprintf('%s\%s', $this->current_namespace, $class);
+                return $this->fully_qualify_name($class);
             }
 			foreach ($this->ancestry($class) as $cls)
 			{
