@@ -168,7 +168,18 @@ trait EmulatorFunctions
 		foreach ($vars as $k=>&$v)
 			$this->variables[$k]=&$v;
 		$this->context_switch($context);
+        $current_class = null;
+		if ($function instanceof EmulatorClosure) {
+		    // WARN: May cause issues if we have closures inside closures
+            // Not sure if we can even define a closure inside another one!
+            $this->current_closure_scope = $function->scope;
+            $this->current_closure_boundobject = $function->bound_object;
+        }
 		$res=$this->run_code($function->code);
+        if ($function instanceof EmulatorClosure) {
+            $this->current_closure_scope = null;
+            $this->current_closure_boundobject = null;
+        }
 		$this->context_restore();		
 		array_pop($this->trace);
 

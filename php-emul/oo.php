@@ -514,7 +514,7 @@ class OOEmulator extends Emulator
 		elseif ($end==="static")
 			return $this->current_class;
 		elseif ($end==="parent")
-			return $this->classes[strtolower($this->current_self)]->parent;	
+			return $this->classes[strtolower($this->current_self)]->parent;
 		return $classname;
 	}
 	/**
@@ -626,6 +626,9 @@ class OOEmulator extends Emulator
 				// if (!isset($var->{$property_name}))
 				// 	$this->notice("Undefined property: ".get_class($var)."::\${$property_name}");
 				#TODO: review this
+                // $reflectionClass = new \ReflectionClass($var);
+                // $prop = $reflectionClass->getProperty($property_name);
+                // $prop->isPrivate();
 				$temp=['temp'=>&$var->{$property_name}]; //creates
 				$key='temp';
 				return $temp;
@@ -644,13 +647,13 @@ class OOEmulator extends Emulator
 				$classname=$classname->classname;
 			$classname=$this->real_class($classname);
 			$property_name=$this->name($node->name);
-			if ($this->ancestry($classname))
+			if ($this->ancestry($this->namespaced_name($classname)))
 			{
-				foreach($this->ancestry($classname) as $class)
+				foreach($this->ancestry($this->namespaced_name($classname)) as $class)
 				{
 					if (array_key_exists($property_name,$this->classes[strtolower($class)]->static))
 					{
-						if (!$this->is_visible($node))
+						if (!$this->is_visible($node) && $this->current_class !== $class) // 2nd condition handles reference to self object inside closures
 						{
 							$this->notice("Cannot access property: {$classname}::\${$property_name}");
 							return $this->null_reference($key);
@@ -810,25 +813,30 @@ class OOEmulator extends Emulator
 		}
 		elseif ($node instanceof Node\Expr\StaticPropertyFetch)
 		{
-			$classname=$this->name($node->class);
-			if ($classname instanceof EmulatorObject) 
-				$classname=$classname->classname;
-			$classname=$this->real_class($classname);
-			$property_name=$this->name($node->name);
-			if ($this->ancestry($classname))
-			{
-				foreach($this->ancestry($classname)  as $class)
-				{
-					if (array_key_exists($property_name,$this->classes[strtolower($class)]->static))
-					{
-						$visibility=$this->classes[strtolower($class)]->static_visibility[$property_name];
-						return ($visibility==EmulatorObject::Visibility_Public
-						or ($visibility==EmulatorObject::Visibility_Protected and $this->is_a($classname, $class,true)  )
-						or ($visibility==EmulatorObject::Visibility_Private and strtolower($classname)==strtolower($class) ) 
-							);						
-					}
-				}
-			}
+            $classname = $this->name($node->class);
+            if ($classname instanceof EmulatorObject)
+                $classname = $classname->classname;
+            $class_scopes[] = $this->namespaced_name($classname);
+		    if (isset($this->current_closure_scope)) {
+                $class_scopes[] = $this->current_closure_scope;
+            }
+            foreach ($class_scopes as $classname) {
+                $property_name=$this->name($node->name);
+                if ($this->ancestry($classname))
+                {
+                    foreach($this->ancestry($classname)  as $class)
+                    {
+                        if (array_key_exists($property_name,$this->classes[strtolower($class)]->static))
+                        {
+                            $visibility=$this->classes[strtolower($class)]->static_visibility[$property_name];
+                            return ($visibility==EmulatorObject::Visibility_Public
+                                or ($visibility==EmulatorObject::Visibility_Protected and $this->is_a($classname, $class,true)  )
+                                or ($visibility==EmulatorObject::Visibility_Private and strtolower($classname)==strtolower($class) )
+                            );
+                        }
+                    }
+                }
+            }
 			return false;
 		}
 		#TODO: handle method visibility

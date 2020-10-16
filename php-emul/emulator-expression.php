@@ -91,6 +91,9 @@ trait EmulatorExpression {
 	 */
 	protected function evaluate_expression($node, &$is_symbolic = false)
 	{
+	    if ($node instanceof New_) {
+	        echo 'here';
+        }
 		if ($this->terminated) return null;
 		$this->expression_preprocess($node);		
 		if ($node===null)

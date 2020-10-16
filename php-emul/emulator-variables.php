@@ -78,7 +78,7 @@ trait EmulatorVariables
                 elseif (!array_key_exists($key, $r)) //only works for arrays, not strings
                 {
                     // If the Array itself is symbolic return a symbol
-                    if (in_array($node->var->name, $this->symbolic_parameters)) {
+                    if (in_array($this->get_variableـname($node), $this->symbolic_parameters)) {
                         return new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
                     }
                     else {

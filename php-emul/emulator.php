@@ -193,6 +193,9 @@ class Emulator
 	protected $current_node,$current_statement_index;
 	protected $current_function,$current_file,$current_line;
 	protected $current_namespace="";
+	protected $current_class = null;
+	protected $current_closure_scope = null;
+	protected $current_closure_boundobject = null;
 	/**
 	 * Number of statements executed so far
 	 * @var integer
@@ -728,7 +731,14 @@ class Emulator
 		}
 		elseif ($node instanceof Node\Expr\Variable)
 		{
-			return $this->symbol_table($node->name,$key,$create);
+		    $node_name = $node->name;
+		    $current_node = $node;
+		    while ($node_name instanceof Node\Expr\Variable) {
+		        // Handle variable variable
+                $node_name = $this->evaluate_expression($current_node->name);
+                $current_node = $current_node->name;
+            }
+			return $this->symbol_table($node_name,$key,$create);
 		}
 		elseif ($node instanceof Node\Expr\ArrayItem) {
 		    return $this->symbol_table($node->value->name, $key, $create);
