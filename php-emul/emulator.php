@@ -861,8 +861,9 @@ class Emulator
 	 */
 	protected function fully_qualify_name($name)
 	{
-		if (!$this->namespaces_enabled)
-			return $name;
+		if (!$this->namespaces_enabled) {
+            return $name;
+        }
 		// if ($name[0]=="\\")
 		// {
 		// 	// $this->notice("FQ called on an already FQ name!")	;
@@ -871,8 +872,9 @@ class Emulator
 		$this->verbose("Resolving relative name '{$name}'...\n",5);
 		// $this->verbose("Resolving relative name '{$name}' to fully qualified name...\n",5);
 		$parts=explode("\\",$name);
-		if (!isset($this->current_active_namespaces[strtolower($parts[0])])) //no alias
-			return $this->current_namespace($name);
+		if (!isset($this->current_active_namespaces[strtolower($parts[0])])) {//no alias
+            return $this->current_namespace($name);
+        }
 		$parts[0]=$this->current_active_namespaces[strtolower($parts[0])];
 		return "".implode("\\",$parts);
 	}
@@ -1200,10 +1202,18 @@ class Emulator
                 // $this->throw_exception($e); //should be throw_error, throw_exception relies on type
                 $this->exception_handler($e);
             }
-            if ($this->terminated) return null;
-            if ($this->return) return $this->return_value;
-            if ($this->break) break;
-            if ($this->continue) break;
+            if ($this->terminated) {
+                return null;
+            }
+            if ($this->return) {
+                return $this->return_value;
+            }
+            if ($this->break) {
+                break;
+            }
+            if ($this->continue) {
+                break;
+            }
 
             $this->current_statement_index=null;
         }

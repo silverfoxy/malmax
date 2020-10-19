@@ -157,6 +157,9 @@ trait EmulatorFunctions
 		//     $this->verbose(strcolor(sprintf("Fetching %s:%s from function summaries.\n", $name, get_class($function_summary)), "light green"));
 		//     return $function_summary;
         // }
+        if (!isset($this->current_file)) {
+            echo 'a';
+        }
 		$this->lineLogger->logFunctionCall($this->current_file, $name, $processed_args);
 		$backups=[];
 		//IMPORTANT: these context and backtrace should be set AFTER prologue and BEFORE function execution,
@@ -339,7 +342,9 @@ trait EmulatorFunctions
         //         }
         //     }
         // }
-		if ($this->terminated) return null;
+		if ($this->terminated) {
+		    return null;
+        }
 		array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,"args"=>$argValues));
 		if (isset($this->mock_functions[strtolower($name)])) { //mocked
             $ret = $this->run_mocked_core_function($name, $argValues);

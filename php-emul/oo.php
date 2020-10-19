@@ -189,6 +189,8 @@ class OOEmulator extends Emulator
 				,'namespace'=>$this->current_namespace,'active_namespaces'=>$this->current_active_namespaces]);
 			foreach ($node->stmts as $part)
 			{
+			    $current_self_backup = $this->current_self;
+			    $this->current_self = $classname;
 				if ($part instanceof Node\Stmt\Property)
 				{
 					$flags=$part->flags; //1= public, 2=protected, 4=private, 8= static
@@ -254,7 +256,8 @@ class OOEmulator extends Emulator
 				$interfaces[]=$this->name($interface);
 			$class->classtype=$classtype;
 			// $class->file=$this->current_file;
-			$class->interfaces=$interfaces;		
+			$class->interfaces=$interfaces;
+        $this->current_self = $current_self_backup;
 	}
 	/**
 	 * Create an object from a user defined class
@@ -353,7 +356,8 @@ class OOEmulator extends Emulator
 	protected function new_object($classname,array $args)
 	{
 		$classname=$this->real_class($classname); //apparently 'new self' is ok!
-		if (!$this->class_exists($classname))	
+		// if (!$this->class_exists($classname))
+        if (!$this->user_class_exists($classname))
 			$this->spl_autoload_call($classname);
 		if ($this->user_class_exists($classname)) //user classes
 			return $this->new_user_object($classname,$args);
@@ -437,7 +441,9 @@ class OOEmulator extends Emulator
 			if ($constant === 'class') {
                 return $this->fully_qualify_name($class);
             }
-			foreach ($this->ancestry($class) as $cls)
+            $class=$this->real_class($class);
+            $fq_classname = stripos($class, $this->current_namespace) !== false ? $class : $this->namespaced_name($class);
+			foreach ($this->ancestry($fq_classname) as $cls)
 			{
 				if (array_key_exists($constant, $this->classes[strtolower($cls)]->consts))
 					return $this->classes[strtolower($cls)]->consts[$constant];
@@ -526,7 +532,13 @@ class OOEmulator extends Emulator
 	public function ancestry($classname,$top_to_bottom=false)
 	{
 		$classname=$this->real_class($classname);
-		if (!isset($this->classes[strtolower($classname)])) return null;
+		$fq_classname = $this->namespaced_name($classname);
+		if (isset($this->classes[strtolower($fq_classname)])) {
+		    $classname = $fq_classname;
+        }
+		elseif (!isset($this->classes[strtolower($classname)])) {
+		    return null;
+        }
 		$res=[$classname];
 		while (isset($this->classes[strtolower($classname)]) 
 			and $this->classes[strtolower($classname)]->parent)
@@ -647,9 +659,10 @@ class OOEmulator extends Emulator
 				$classname=$classname->classname;
 			$classname=$this->real_class($classname);
 			$property_name=$this->name($node->name);
-			if ($this->ancestry($this->namespaced_name($classname)))
+			$fq_classname = stripos($classname, $this->current_namespace) !== false ? $classname : $this->namespaced_name($classname);
+			if ($this->ancestry($fq_classname))
 			{
-				foreach($this->ancestry($this->namespaced_name($classname)) as $class)
+				foreach($this->ancestry($fq_classname) as $class)
 				{
 					if (array_key_exists($property_name,$this->classes[strtolower($class)]->static))
 					{

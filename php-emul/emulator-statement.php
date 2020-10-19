@@ -198,9 +198,10 @@ trait EmulatorStatement
                 else
                     foreach ($list as $k=>$v)
                     {
-                        if ($keyed)
+                        if ($keyed) {
                             $keyVar=$k;
-                        $this->variable_set($node->keyVar,$keyVar);
+                            $this->variable_set($node->keyVar,$keyVar);
+                        }
                         $this->variable_set($node->valueVar,$v);
                         $this->run_code($node->stmts);
 

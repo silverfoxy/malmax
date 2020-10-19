@@ -324,7 +324,9 @@ trait OOEmulatorMethods {
 	{
 		$class=$this->real_class($class_name);
 		$argValues=$this->core_function_prologue($method_name,$args,$class); #this has to be before the trace line, 
-		if ($this->terminated) return null;
+		if ($this->terminated) {
+            return null;
+        }
 		#TODO: add mocked class/methods
         // Check for symbolic methods
         $class_function_name = $class_name.'/'.$method_name;
