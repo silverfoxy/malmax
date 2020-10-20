@@ -838,150 +838,86 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 //     foreach ()
                 // }
                 // if ($this->evaluate_expression())
-				$stmts=null;
-				$done=false;
+				$selected_branch_statements = null;
+				$covered_one_branch = false;
 				// Check if any of the branches are concrete
-                $none_symbolic = true;
+                $have_symbolic_conditions = false;
                 $is_symbolic = false;
+                $this->lineLogger->logNodeCoverage($node->cond, $this->current_file);
 				$main_branch_condition = $this->evaluate_expression($node->cond, $is_symbolic);
                 if ($main_branch_condition && !$main_branch_condition instanceof SymbolicVariable && !$is_symbolic) {
                     // Condition of this branch is concretely satisfied
-                    $done=true;
-                    $stmts = $node->stmts;
+                    $covered_one_branch = true;
+                    $selected_branch_statements = $node->stmts;
                     $condition = $this->print_ast($node->cond);
                 }
-                elseif ($main_branch_condition) {
-                    // Main branch condition Symbolic
-                    $none_symbolic = false;
+                elseif ($main_branch_condition instanceof SymbolicVariable || $is_symbolic) {
+                    $this->verbose('main branch is symbolic'. PHP_EOL);
+                    $forked_process_info = $this->fork_execution();
+                    if ($forked_process_info !== false) {
+                        list($pid, $child_pid) = $forked_process_info;
+                        if ($child_pid === 0) {
+                            $selected_branch_statements = $node->stmts;
+                            $covered_one_branch = true;
+                        }
+                    } else {
+                        // Terminated
+                        return;
+                    }
                 }
                 $branch_conditions = [];
 
-                if (!$done && is_array($node->elseifs) && sizeof($node->elseifs) > 0) {
+                if (!$covered_one_branch && is_array($node->elseifs) && sizeof($node->elseifs) > 0) {
                     // Main branch is not satisfied, now checking the elseif branches
                     foreach ($node->elseifs as $elseif) {
-                        $branch_condition = $this->evaluate_expression($elseif->cond);;
+                        $this->lineLogger->logNodeCoverage($elseif->cond, $this->current_file);
+                        $branch_condition = $this->evaluate_expression($elseif->cond);
                         $branch_conditions[$this->statement_id($elseif)] = $branch_condition;
                         if ($branch_condition && !$branch_condition instanceof SymbolicVariable) {
                             // Condition of this branch is concretely satisfied
-                            $done=true;
-                            $stmts = $elseif->stmts;
+                            $covered_one_branch=true;
+                            $selected_branch_statements = $elseif->stmts;
                             $condition = $this->print_ast($elseif->cond);
                             break;
                         }
-                        elseif ($branch_condition) {
-                            $none_symbolic = false;
-                        }
-                    }
-                }
-                if ($none_symbolic && !$done) {
-                    if (isset($node->else)) {
-                        // run else
-                        $done = true;
-                        $stmts = $node->else->stmts;
-                        $condition="not ".$this->print_ast($node->cond);
-                    }
-                    else {
-                        // Nothing to do
-                        $done = true;
-                        $condition = '';
-                    }
-                }
-				// If this condition was not covered in a previous run
-				// if (!$done && !in_array($this->statement_id($this->cond), $this->skip_conditions)) //main branch was not factual, run it
-                if (!$done)
-				{
-				    if ($this->execution_mode === ExecutionMode::OFFLINE) {
-                        if ($this->checkpoint_restore_mode) {
-                            $this->checkpoint_restore_mode = false;
-                            $stmts = $node->stmts;
-                            $done = true;
-                        }
-                        else {
-                            if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
-                                $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $node);
-                            }
-                            else {
-                                $this->terminated = true;
-                                return;
-                            }
-                        }
-                    }
-				    elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                        $forked_process_info = $this->fork_execution();
-                        if ($forked_process_info !== false) {
-                            list($pid, $child_pid) = $forked_process_info;
-                            if ($child_pid === 0) {
-                                $stmts = $node->stmts;
-                                // $this->verbose("Running if body ".$node->getStartLine().PHP_EOL);
-                                $done = true;
-                            }
-                        }
-                        else {
-                            // Terminated
-                            return;
-                        }
-                    }
-				}
-                if (!$done) {
-                    $index=0;
-                    $else_statements = [];
-                    if (is_array($node->elseifs)) {
-                        $else_statements = $node->elseifs;
-                    }
-                    foreach ($else_statements as $elseif)
-                    {
-                        $index++;
-                        if ($branch_conditions[$this->statement_id($elseif)] instanceof SymbolicVariable) {
-                            if ($this->execution_mode === ExecutionMode::OFFLINE) {
-                                if ($this->checkpoint_restore_mode) {
-                                    $this->checkpoint_restore_mode = false;
+                        elseif ($branch_condition instanceof SymbolicVariable) {
+                            // Elseif condition is symbolic
+                            $forked_process_info = $this->fork_execution();
+                            if ($forked_process_info !== false) {
+                                list($pid, $child_pid) = $forked_process_info;
+                                if ($child_pid === 0) {
                                     if (isset($elseif->cond)) {
                                         $condition = $this->print_ast($elseif->cond);
                                     } else {
                                         $condition = 'else';
                                     }
-                                    $stmts = $elseif->stmts;
-                                    $done = true;
+                                    $selected_branch_statements = $elseif->stmts;
+                                    $covered_one_branch = true;
                                     break;
                                 }
-                                else {
-                                    if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
-                                        $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $elseif);
-                                    }
-                                    else {
-                                        $this->terminated = true;
-                                        return;
-                                    }
-                                }
-                            }
-                            elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                                $forked_process_info = $this->fork_execution();
-                                if ($forked_process_info !== false) {
-                                    list($pid, $child_pid) = $forked_process_info;
-                                    if ($child_pid === 0) {
-                                        if (isset($elseif->cond)) {
-                                            $condition = $this->print_ast($elseif->cond);
-                                        } else {
-                                            $condition = 'else';
-                                        }
-                                        $stmts = $elseif->stmts;
-                                        $done = true;
-                                        break;
-                                    }
-                                } else {
-                                    // Terminated
-                                    return;
-                                }
+                            } else {
+                                // Terminated
+                                return;
                             }
                         }
                     }
-                    if (!$done and isset($node->else))
-                    {
+                }
+                if (!$covered_one_branch) {
+                    // None of the If/Elseif conditions were satisfied
+                    // Therefore we run Else
+                    if (isset($node->else)) {
+                        // run else
+                        $covered_one_branch = true;
+                        $selected_branch_statements = $node->else->stmts;
                         $condition="not ".$this->print_ast($node->cond);
-                        $stmts=($node->else->stmts);
+                    }
+                    else {
+                        // Nothing to do
+                        $covered_one_branch = true;
+                        $condition = '';
                     }
                 }
-				if ($stmts!==null)
+				if ($selected_branch_statements !==null)
 				{
 				    if (!isset($condition)) {
 				        $condition = 'not set';
@@ -989,7 +925,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 					array_push($this->active_conditions,$condition);
 					$this->if_nesting++;
                     // $this->verbose("Running the code inside if body ".$node->getStartLine().PHP_EOL);
-					$this->run_code($stmts);
+					$this->run_code($selected_branch_statements);
 					$this->if_nesting--;
 					array_pop($this->active_conditions);
 				}
@@ -1020,14 +956,14 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 			}
 			if ($this->concolic)
 			{
-				$done=false;
+				$covered_one_branch=false;
 				$condition=false;
 				$index=0;
 				$master_condition=$this->evaluate_expression($node->cond);
 				$this->verbose("Concolic switch with ".count($node->cases)." cases found...\n",3);
 				$case_conditions = [];
 				$index = 0;
-				$none_symbolic = true;
+				$have_symbolic_conditions = true;
 				// If the main condition is Symbolic then run everything
                 $run_next_case = false;
                 if ($master_condition instanceof SymbolicVariable) {
@@ -1039,7 +975,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                 , "light green"), 0);
                             $this-> run_code($case->stmts);
                             if ($this->loop_condition()) {
-                                $done = true;
+                                $covered_one_branch = true;
                                 break;
                             }
                         }
@@ -1051,7 +987,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                     $this->run_code($case->stmts);
                                     // loop_condition reduces the number of breaks, it needs to be here
                                     if ($this->loop_condition()) {
-                                        $done = true;
+                                        $covered_one_branch = true;
                                         break;
                                     } else {
                                         $run_next_case = true;
@@ -1076,7 +1012,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                         $this->run_code($case->stmts);
                                         // loop_condition reduces the number of breaks, it needs to be here
                                         if ($this->loop_condition()) {
-                                            $done = true;
+                                            $covered_one_branch = true;
                                             break;
                                         } else {
                                             $run_next_case = true;
@@ -1089,7 +1025,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             $this->run_code($case->stmts);
                             // loop_condition reduces the number of breaks, it needs to be here
                             if ($this->loop_condition()) {
-                                $done = true;
+                                $covered_one_branch = true;
                                 break;
                             } else {
                                 $run_next_case = true;
@@ -1100,10 +1036,10 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 else {
                     // If individual cases are Symbolic then run that one
                     $this->verbose("Switch condition is concrete, checking branch conditions branches\n",0);
-                    $done = false;
+                    $covered_one_branch = false;
                     $run_next_case = false;
                     foreach ($node->cases as $case) {
-                        if ($done) {
+                        if ($covered_one_branch) {
                             break;
                         }
                         // If some of the conditions are concretely satisfied, run those
@@ -1112,7 +1048,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             $this->run_code($case->stmts);
                             // loop_condition reduces the number of breaks, it needs to be here
                             if ($this->loop_condition()) {
-                                $done=true;
+                                $covered_one_branch=true;
                             }
                         }
                         elseif ($cond instanceof SymbolicVariable || $run_next_case) {
@@ -1127,7 +1063,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                         $this->run_code($case->stmts);
                                         // loop_condition reduces the number of breaks, it needs to be here
                                         if ($this->loop_condition()) {
-                                            $done = true;
+                                            $covered_one_branch = true;
                                             break;
                                         } else {
                                             $run_next_case = true;
@@ -1151,7 +1087,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                             $this->run_code($case->stmts);
                                             // loop_condition reduces the number of breaks, it needs to be here
                                             if ($this->loop_condition()) {
-                                                $done = true;
+                                                $covered_one_branch = true;
                                                 break;
                                             } else {
                                                 $run_next_case = true;
@@ -1167,7 +1103,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                 $this->run_code($case->stmts);
                                 // loop_condition reduces the number of breaks, it needs to be here
                                 if ($this->loop_condition()) {
-                                    $done = true;
+                                    $covered_one_branch = true;
                                     break;
                                 } else {
                                     $run_next_case = true;
@@ -1180,7 +1116,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                 sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(),$this->current_file, $this->current_line)
                                 ,"light green"),0);
                             $this->run_code($case->stmts);
-                            $done=true;
+                            $covered_one_branch=true;
                             // To take care of the last break
                             $this->loop_condition();
                             break;
@@ -1202,10 +1138,10 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         $this->verbose("Case {$index}{$d} is a matching case, running...\n",0);
                         $this->run_code($case->stmts);
                         if ($this->loop_condition())
-                            $done=true;
+                            $covered_one_branch=true;
                     }
                     elseif ($case_condition instanceof SymbolicVariable) {
-                        $none_symbolic = false;
+                        $have_symbolic_conditions = false;
                     }
                 }
                 // if ($none_symbolic) {
@@ -1215,14 +1151,14 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 $index = 0;
 				foreach ($node->cases as $case)
 				{
-                    if ($done) {
+                    if ($covered_one_branch) {
                         break;
                     }
 					$index++;
 					$default=$case->cond===NULL;
 					$this->verbose("Checking switch case {$index}...\n",4);
 					$this->inc("switch/branches");
-					if ($default and !$done) // default case
+					if ($default and !$covered_one_branch) // default case
 						$condition=true; //run everything henceforth
 					elseif ($this->evaluate_expression($case->cond)==$cond) //real path
 						$condition=true;
@@ -1233,7 +1169,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 						$this->verbose("Case {$index}{$d} is a matching case, running...\n",0);
 						$this->run_code($case->stmts);
 						if ($this->loop_condition())
-							$done=true;
+							$covered_one_branch=true;
 
 					}
 					else
@@ -1245,7 +1181,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                 $this->run_code($case->stmts);
                                 // loop_condition reduces the number of breaks, it needs to be here
                                 if ($this->loop_condition()) {
-                                    $done = true;
+                                    $covered_one_branch = true;
                                 }
                             }
                             else {
@@ -1266,7 +1202,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                     $this->run_code($case->stmts);
                                     // loop_condition reduces the number of breaks, it needs to be here
                                     if ($this->loop_condition()) {
-                                        $done = true;
+                                        $covered_one_branch = true;
                                     }
                                 }
                             } else {

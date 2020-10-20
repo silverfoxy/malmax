@@ -82,10 +82,7 @@ trait EmulatorVariables
                         return new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
                     }
                     else {
-                        if ($key === 'set_fontsize') {
-                            $a = 'hi';
-                        }
-                        $this->notice("Undefined index: {$key}");
+                        $this->notice("Undefined index: {$key} {$this->current_line}");
                         return null;
                     }
                 }

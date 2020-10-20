@@ -157,9 +157,6 @@ trait EmulatorFunctions
 		//     $this->verbose(strcolor(sprintf("Fetching %s:%s from function summaries.\n", $name, get_class($function_summary)), "light green"));
 		//     return $function_summary;
         // }
-        if (!isset($this->current_file)) {
-            echo 'a';
-        }
 		$this->lineLogger->logFunctionCall($this->current_file, $name, $processed_args);
 		$backups=[];
 		//IMPORTANT: these context and backtrace should be set AFTER prologue and BEFORE function execution,

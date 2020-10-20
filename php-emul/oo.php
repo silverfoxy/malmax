@@ -392,6 +392,7 @@ class OOEmulator extends Emulator
 			else
 			{
 				$this->error("Call to a member function '{$method_name}()' on a non-object");
+				var_dump($object);
 				return null;
 			}
 			$this->verbose("Method call {$classname}::{$method_name}()".PHP_EOL,3);
@@ -571,7 +572,8 @@ class OOEmulator extends Emulator
 				$statics=&$this->classes[strtolower($class)]->methods[strtolower($method)]->statics;// &$this->functions[$this->current_function]->statics;
 				foreach ($node->vars as $var)
 				{
-					$name=$this->name($var->name);
+				    // $name=$this->name($var->name)
+					$name = $this->get_variableـname($var->var);
 					if (!array_key_exists($name,$statics))
 						$statics[$name]=$this->evaluate_expression($var->default);
 					$this->variables[$name]=&$statics[$name];

@@ -989,13 +989,18 @@ class Emulator
                 // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
                 $data = $this->read_and_delete_shmop($child_pid);
                 $info = unserialize($data, [false]);
-                // $this->verbose(print_r($info, true).PHP_EOL);
-                // Merge fork info
-                $this->merge_fork_info($info['fork_info']);
-                // Merge coverage info
-                $this->merge_line_coverage($info['line_coverage']);
-                // Merge output
-                $this->merge_output($info['output']);
+                if(isset($info)) {
+                    // $this->verbose(print_r($info, true).PHP_EOL);
+                    // Merge fork info
+                    $this->merge_fork_info($info['fork_info']);
+                    // Merge coverage info
+                    $this->merge_line_coverage($info['line_coverage']);
+                    // Merge output
+                    $this->merge_output($info['output']);
+                }
+                else {
+                    $this->notice('Could not merge fork_info'.PHP_EOL);
+                }
             }
             // Wait for other forks of concolic execution to catch up
             if (isset($this->parent_pid)) { // If there was any fork going on
