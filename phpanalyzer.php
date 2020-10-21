@@ -852,7 +852,6 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                     $condition = $this->print_ast($node->cond);
                 }
                 elseif ($main_branch_condition instanceof SymbolicVariable || $is_symbolic) {
-                    $this->verbose('main branch is symbolic'. PHP_EOL);
                     $forked_process_info = $this->fork_execution();
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;

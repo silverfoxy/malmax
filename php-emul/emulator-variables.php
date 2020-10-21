@@ -82,7 +82,7 @@ trait EmulatorVariables
                         return new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
                     }
                     else {
-                        $this->notice("Undefined index: {$key} {$this->current_line}");
+                        $this->notice("Undefined index: {$key}");
                         return null;
                     }
                 }

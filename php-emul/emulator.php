@@ -981,15 +981,15 @@ class Emulator
         elseif ($this->execution_mode === ExecutionMode::ONLINE) {
             // Handle concurrency
             // Merge child coverage and fork information
-            foreach ($this->child_pids as $child_pid) {
+            foreach ($this->child_pids as $child_pid => $closed) {
                 // $this->verbose('Merging '.$child_pid.PHP_EOL);
                 $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
                 // Merge information from children
                 // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
                 // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
-                $data = $this->read_and_delete_shmop($child_pid);
-                $info = unserialize($data, [false]);
-                if(isset($info)) {
+                $data = $closed ? false : $this->read_and_delete_shmop($child_pid);
+                if($data) {
+                    $info = unserialize($data, [false]);
                     // $this->verbose(print_r($info, true).PHP_EOL);
                     // Merge fork info
                     $this->merge_fork_info($info['fork_info']);
@@ -997,9 +997,6 @@ class Emulator
                     $this->merge_line_coverage($info['line_coverage']);
                     // Merge output
                     $this->merge_output($info['output']);
-                }
-                else {
-                    $this->notice('Could not merge fork_info'.PHP_EOL);
                 }
             }
             // Wait for other forks of concolic execution to catch up
@@ -1276,6 +1273,7 @@ class Emulator
         $shm_id = shmop_open($id, "a", 0, 0);
         if(!$shm_id) {
             echo 'Failed to read shmem'.PHP_EOL;
+            return false;
         }
         $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
         if ($delete_shmop) {
@@ -1354,7 +1352,7 @@ class Emulator
 	    // echo "md5: $md5".PHP_EOL;
         $this->process_count++;
         $pid = getmypid();
-        foreach ($this->child_pids as $child_pid) {
+        foreach ($this->child_pids as $child_pid => $closed) {
             $this->verbose(strcolor($pid.' is waiting for '.$child_pid.PHP_EOL, "light green"));
             $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
             if ($returned_pid !== -1) { // If there was a child, merge the information
@@ -1363,20 +1361,23 @@ class Emulator
                 // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
                 // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
                 $data = $this->read_and_delete_shmop($child_pid, false);
+                $this->child_pids[$child_pid] = true;
                 // $data = $this->read_and_delete_shmop($child_pid);
-                $info = unserialize($data, [false]);
-                // $this->verbose(print_r($info, true).PHP_EOL);
-                // Merge fork info
-                $this->merge_fork_info($info['fork_info']);
-                // Merge coverage info
-                $this->merge_line_coverage($info['line_coverage']);
-                // Merge output
-                $this->merge_output($info['output']);
+                if ($data) {
+                    $info = unserialize($data, [false]);
+                    // $this->verbose(print_r($info, true).PHP_EOL);
+                    // Merge fork info
+                    $this->merge_fork_info($info['fork_info']);
+                    // Merge coverage info
+                    $this->merge_line_coverage($info['line_coverage']);
+                    // Merge output
+                    $this->merge_output($info['output']);
+                }
             }
         }
         $child_pid = pcntl_fork();
         if ($child_pid !== 0) {
-            $this->child_pids[] = $child_pid;
+            $this->child_pids[$child_pid] = false;
             // if (isset($this->parent_pid)) { // If there was any fork going on
             //
             // }
