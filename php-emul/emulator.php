@@ -1270,7 +1270,8 @@ class Emulator
 	}
 
     function read_and_delete_shmop($id, $delete_shmop=true) {
-        $shm_id = shmop_open($id, "a", 0, 0);
+	    // @ to suppress the warning when shmem does not exist
+        @$shm_id = shmop_open($id, "a", 0, 0);
         if(!$shm_id) {
             echo 'Failed to read shmem'.PHP_EOL;
             return false;

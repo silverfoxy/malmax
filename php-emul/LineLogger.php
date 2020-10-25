@@ -79,8 +79,9 @@ class LineLogger
         file_put_contents('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/line_coverage_logs.txt', $log_entry, FILE_APPEND);
     }
 
-    public function logFunctionCall(string $current_file, string $function_name, array $parameters) {
+    public function logFunctionCall(?string $current_file, string $function_name, array $parameters) {
         $print_parameters = '';
+        $current_file = $current_file ?? '';
         foreach($parameters as $param_name=>$param_value) {
             $print_parameters .= sprintf('%s=%s, ', $param_name, print_r($param_value, true));
         }

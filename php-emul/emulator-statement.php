@@ -333,7 +333,11 @@ trait EmulatorStatement
 				$statics=&$this->functions[strtolower($this->current_function)]->statics;
 				foreach ($node->vars as $var)
 				{
-					$name=$this->name($var->name);
+				    $current_var = $var;
+				    while (isset($current_var->var)) {
+				        $current_var = $current_var->var;
+                    }
+					$name=$this->name($current_var->name);
 					if (!array_key_exists($name,$statics))
 						$statics[$name]=$this->evaluate_expression($var->default);
 					$this->variables[$name]=&$statics[$name];

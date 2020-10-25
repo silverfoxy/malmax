@@ -91,9 +91,6 @@ trait EmulatorExpression {
 	 */
 	protected function evaluate_expression($node, &$is_symbolic = false)
 	{
-	    if ($node instanceof New_) {
-	        echo 'here';
-        }
 		if ($this->terminated) return null;
 		$this->expression_preprocess($node);		
 		if ($node===null)
@@ -102,8 +99,10 @@ trait EmulatorExpression {
             $is_symbolic = true;
             return $node;
         }
-		elseif (is_array($node))
-			$this->error("Did not expect array node!",$node);
+		elseif (is_array($node)) {
+            return $node;
+            $this->error("Did not expect array node!",$node);
+        }
 		elseif ($node instanceof Node\Expr\FuncCall)
 		{
 			$name=$this->name($node);

@@ -845,13 +845,13 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 $is_symbolic = false;
                 $this->lineLogger->logNodeCoverage($node->cond, $this->current_file);
 				$main_branch_condition = $this->evaluate_expression($node->cond, $is_symbolic);
-                if ($main_branch_condition && !$main_branch_condition instanceof SymbolicVariable && !$is_symbolic) {
+                if ($main_branch_condition && !$main_branch_condition instanceof SymbolicVariable) {
                     // Condition of this branch is concretely satisfied
                     $covered_one_branch = true;
                     $selected_branch_statements = $node->stmts;
                     $condition = $this->print_ast($node->cond);
                 }
-                elseif ($main_branch_condition instanceof SymbolicVariable || $is_symbolic) {
+                elseif ($main_branch_condition instanceof SymbolicVariable) {
                     $forked_process_info = $this->fork_execution();
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
