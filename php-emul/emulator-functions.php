@@ -172,8 +172,8 @@ trait EmulatorFunctions
 		if ($function instanceof EmulatorClosure) {
 		    // WARN: May cause issues if we have closures inside closures
             // Not sure if we can even define a closure inside another one!
-            $this->current_closure_scope = $function->scope;
-            $this->current_closure_boundobject = $function->bound_object;
+            $this->current_closure_scope = isset($function->scope) ? $function->scope : null;
+            $this->current_closure_boundobject = isset($function->bound_object) ? $function->bound_object : null;
         }
 		$res=$this->run_code($function->code);
         if ($function instanceof EmulatorClosure) {
