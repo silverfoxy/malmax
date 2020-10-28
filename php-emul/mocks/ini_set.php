@@ -9,6 +9,10 @@ function ini_set_mock($emul,$varname,$value)
 	if ($varname=="max_execution_time")
 		return false;
 	#TODO: support for execution time limit
-	
-	return ini_set($varname,$value);	
+	if (headers_sent()) {
+	    return false;
+    }
+	else {
+        return ini_set($varname,$value);
+    }
 }

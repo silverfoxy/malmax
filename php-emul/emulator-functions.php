@@ -306,12 +306,18 @@ trait EmulatorFunctions
         elseif (ob_get_level()==0) {
 		    ob_start();
         }
+		$current_error_handler = set_error_handler('PHPEmul\Emulator::userfunc_err_handler', E_WARNING|E_ALL);
 		$ret=call_user_func_array($name,$argValues); //core function
+        set_error_handler($current_error_handler);
 		if (ob_get_level() > 0) {
 		    $this->output(ob_get_clean());
         }
 		return $ret;
 	}
+    public static function userfunc_err_handler($errno, $errstr, $errfile, $errline)
+    {
+        $this->verbose(strcolor(sprintf('[%d] Error at %s:%d: %s'.PHP_EOL, getmypid(), $errfile, $errline, $errstr), 'red'));
+    }
 	protected function run_mocked_core_function($name,$argValues)
 	{
 		$mocked_name=$this->mock_functions[strtolower($name)];

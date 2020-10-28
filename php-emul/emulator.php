@@ -101,6 +101,9 @@ class Emulator
 
 	public LineLogger $lineLogger;
 
+	public string $cache_limiter;
+	public string $session_name = 'PHPSESSID';
+
     public array $fork_info = [];
     public array $symbolic_parameters = [];
     public array $symbolic_functions = [];
@@ -121,6 +124,9 @@ class Emulator
     public bool $checkpoint_restore_mode = false;
     public int $active_checkpoint_node;
     public array $overall_coverage_info = [];
+
+    public bool $immutable_symbolic_variables = true;
+    public $max_output_length = false;
 
 	/**
 	 * A data storage for use by mock functions and other
@@ -719,8 +725,9 @@ class Emulator
                     $base[$key]=null;
             }
 
-
-            if (!$create && (in_array(strval($key), $this->symbolic_parameters) || in_array(strval($key2), $this->symbolic_parameters))) {
+            // Prevents setting concrete values to symbolic variables
+            // Always return a symbol
+            if ((!$create && (in_array(strval($key), $this->symbolic_parameters))) || (in_array(strval($key2), $this->symbolic_parameters) && $this->immutable_symbolic_variables)) {
                 $symbol = new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
                 return $symbol;
             }
@@ -776,7 +783,7 @@ class Emulator
 		elseif ($ast instanceof Node\Expr\FuncCall)
 		{
 		    if ($ast->name instanceof Node\Name\FullyQualified) {
-                return $ast->name;
+                return $this->name($ast->name);
             }
 			elseif (is_string($ast->name) or $ast->name instanceof Node\Name) {
                 return $this->name($ast->name);
@@ -1037,7 +1044,7 @@ class Emulator
 		chdir(dirname($this->entry_file));
 		// $file=basename($this->entry_file);
 		ini_set("memory_limit",-1);
-		set_error_handler(array($this,"error_handler"));
+		// set_error_handler(array($this,"error_handler"));
 		// set_exception_handler(array($this,"exception_handler")); //exception handlers can not return. they terminate the program.
 		$res=$this->run_file($this->entry_file, true);
 		$this->shutdown();
@@ -1271,9 +1278,11 @@ class Emulator
 
     function read_and_delete_shmop($id, $delete_shmop=true) {
 	    // @ to suppress the warning when shmem does not exist
+        $original_error_handler = set_error_handler(function() { return true; });
         @$shm_id = shmop_open($id, "a", 0, 0);
+        set_error_handler($original_error_handler);
         if(!$shm_id) {
-            echo 'Failed to read shmem'.PHP_EOL;
+            // echo 'Failed to read shmem'.PHP_EOL;
             return false;
         }
         $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
@@ -1326,8 +1335,8 @@ class Emulator
 
     function merge_output($output) {
 	    $this->output .= $output;
-	    if (strlen($this->output) > 1000) {
-            $this->output = substr($this->output, -1000);
+	    if ($this->max_output_length !== false && ($this->output) > $this->max_output_length) {
+            $this->output = substr($this->output, -$this->max_output_length);
         }
     }
 

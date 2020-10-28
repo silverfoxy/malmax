@@ -282,7 +282,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 		$this->restore_ob();
 		return true;
 	}
-	protected function _error($msg,$node=null,$details=true)
+	protected function _error($msg,$node=null,$details=true, $errno=0)
 	{
 		$this->inc("error/all");
 		if ($this->off_branch!=0)

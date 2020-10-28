@@ -231,6 +231,7 @@ trait EmulatorErrors
 	 */
 	function set_error_handler($handler,$error_reporting=32767)
 	{
+	    $this->verbose(getmypid() . ' Setting error handler'.PHP_EOL);
 		if (count($this->error_handlers))
 			$res=end($this->error_handlers)['handler'];
 		else
@@ -321,7 +322,7 @@ trait EmulatorErrors
 	public function error($msg,$node=null)
 	{
 		$this->verbose("Emulation Error: ",0);
-		$this->_error($msg,$node);
+		$this->_error($msg,$node, E_ERROR);
 		$this->terminated=true;
 		return null;
 	}
@@ -332,10 +333,9 @@ trait EmulatorErrors
 	 * @param  boolean $details [description]
 	 * @return [type]           [description]
 	 */
-	protected function _error($msg,$node=null,$details=true)
+	protected function _error($msg,$node=null,$details=true, $errno=0)
 	{
-		#TODO: these should be handled by error_handler as well, and the program.
-		$this->verbose($msg." in ".$this->current_file." on line ".$this->current_line.PHP_EOL,0);
+        $this->error_handler($errno, $msg, $this->current_file, $this->current_line);
 		// $this->output($msg." in ".$this->current_file." on line ".$this->current_line.PHP_EOL);
 		if ($details)
 		{
@@ -368,7 +368,7 @@ trait EmulatorErrors
 		if ($this->error_reporting & E_NOTICE or (defined("E_USER_NOTICE") and $this->error_reporting & E_USER_NOTICE))
 		{
 			$this->verbose("Emulation Notice: ",0);
-			$this->_error($msg,$node,false or $this->strict);
+			$this->_error($msg,$node,false or $this->strict, E_NOTICE);
 			return true;
 		}
 		return false;
@@ -385,7 +385,7 @@ trait EmulatorErrors
 		if ($this->error_reporting & E_WARNING or (defined("E_USER_WARNING") and $this->error_reporting & E_USER_WARNING))
 		{
 			$this->verbose("Emulation Warning: ",0);
-			$this->_error($msg,$node);
+			$this->_error($msg,$node, E_WARNING);
 			return true;
 		}
 		return false;
