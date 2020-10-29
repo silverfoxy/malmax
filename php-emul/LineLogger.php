@@ -11,7 +11,12 @@ class LineLogger
      */
     public array $coverage_info = [];
     public array $raw_logs = [];
-    public CONST LOGPATH = '/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/index_logs.txt';
+    public string $PATH_PREFIX;
+
+    public function __construct(string $PATH_PREFIX) {
+        $this->PATH_PREFIX = $PATH_PREFIX;
+    }
+
     public function logNodeCoverage(Node $node, $current_file) {
         $log_entry = '';
         $start_line = 0;
@@ -32,6 +37,8 @@ class LineLogger
                 break;
             case ($node instanceof Node\Stmt\ElseIf_):
             case ($node instanceof Node\Stmt\Else_):
+            case ($node instanceof Node\Stmt\For_):
+            case ($node instanceof Node\Stmt\Namespace_):
                 $start_line = 0;
                 $end_line = 0;
                 break;
@@ -47,14 +54,6 @@ class LineLogger
                 $start_line = $node->getAttribute('startLine');
                 $end_line = $node->getAttribute('endLine');
                 // $log_entry =  sprintf('%s: %s-%s'.PHP_EOL, $current_file, $node->expr->getAttribute('startLine'), $node->expr->getAttribute('endLine'));
-                break;
-            case ($node instanceof Node\Stmt\For_):
-                $start_line = 0;
-                $end_line = 0;
-                break;
-            case ($node instanceof Node\Stmt\Namespace_):
-                $start_line = 0;
-                $end_line = 0;
                 break;
             case ($node instanceof Node\Stmt\Function_):
                 // Log only the first line of the function
@@ -76,7 +75,7 @@ class LineLogger
         $file_name = str_replace('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/debloating_DVWA/web/', '', $current_file);
         $log_entry =  sprintf('%s: %s-%s'.PHP_EOL, $file_name, $start_line, $end_line);
         $this->raw_logs[] = $log_entry;
-        file_put_contents('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/line_coverage_logs.txt', $log_entry, FILE_APPEND);
+        file_put_contents($this->PATH_PREFIX.'line_coverage_logs.txt', $log_entry, FILE_APPEND);
     }
 
     public function logFunctionCall(?string $current_file, string $function_name, array $parameters) {

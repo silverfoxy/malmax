@@ -306,7 +306,8 @@ trait EmulatorFunctions
         elseif (ob_get_level()==0) {
 		    ob_start();
         }
-		$current_error_handler = set_error_handler('PHPEmul\Emulator::userfunc_err_handler', E_WARNING|E_ALL);
+		$current_error_handler = set_error_handler(array($this, 'userfunc_err_handler'), E_WARNING|E_ALL);
+		$this->arg_values = $argValues;
 		$ret=call_user_func_array($name,$argValues); //core function
         set_error_handler($current_error_handler);
 		if (ob_get_level() > 0) {
@@ -314,9 +315,10 @@ trait EmulatorFunctions
         }
 		return $ret;
 	}
-    public static function userfunc_err_handler($errno, $errstr, $errfile, $errline)
+    public function userfunc_err_handler($errno, $errstr, $errfile, $errline)
     {
-        $this->verbose(strcolor(sprintf('[%d] Error at %s:%d: %s'.PHP_EOL, getmypid(), $errfile, $errline, $errstr), 'red'));
+        $this->verbose(strcolor(sprintf('[%d] Error at %s:%d Triggered at %s:%d: %s'.PHP_EOL, getmypid(), $this->current_file, $this->current_line, $errfile, $errline, $errstr), 'red'));
+        $this->verbose(print_r($this->arg_values, true));
     }
 	protected function run_mocked_core_function($name,$argValues)
 	{

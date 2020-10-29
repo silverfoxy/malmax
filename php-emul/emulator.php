@@ -9,6 +9,7 @@ namespace PHPEmul;
 // require_once __DIR__."/PHP-Parser/lib/bootstrap.php";
 require_once __DIR__."/vendor/autoload.php";
 
+use AnimateDead\Utils;
 use malmax\ExecutionMode;
 use PhpParser\Lexer;
 use PhpParser\Node;
@@ -80,7 +81,7 @@ class Emulator
 		$this->parser = (new ParserFactory())->create(ParserFactory::PREFER_PHP7);
 		$this->printer = new Standard;
     	$this->init($init_environ, $predefined_constants);
-        $this->lineLogger = new LineLogger();
+        $this->lineLogger = new LineLogger(Utils::$PATH_PREFIX);
         if(!defined('EXECUTED_FROM_PHPUNIT')) {
             define('EXECUTED_FROM_PHPUNIT', false);
         }
@@ -127,6 +128,19 @@ class Emulator
 
     public bool $immutable_symbolic_variables = true;
     public $max_output_length = false;
+
+    /**
+     * If true, the specific child process will be replayed as the parent process
+     * This affects the forking procedure of the emulator
+     * @var bool
+     */
+    public bool $reanimate = false;
+
+    /**
+     * Holds the "state hash" of places where we forked and went into the child process
+     * @var array
+     */
+    public array $reanimate_transcript = [];
 
 	/**
 	 * A data storage for use by mock functions and other
@@ -1013,7 +1027,7 @@ class Emulator
                     $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
                     $this->write_shmop($pid, serialize($data));
                     foreach ($this->lineLogger->raw_logs as $entry) {
-                        file_put_contents(sprintf('/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info).serialize($this->variables))), $entry, FILE_APPEND);
+                        file_put_contents(sprintf(Utils::PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info).serialize($this->variables))), $entry, FILE_APPEND);
                     }
                     gc_collect_cycles();
                     exit(0);
@@ -1343,64 +1357,83 @@ class Emulator
     protected function fork_execution(bool $always_fork = false) {
         // Prevent duplicate forks
         $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variables));
-        // echo "md5: $md5_current_state".PHP_EOL;
-        // echo "nd5: ".print_r($this->fork_info[$this->current_file][$this->current_line], true).PHP_EOL;
-	    if (!$always_fork
-            && (array_key_exists($this->current_file, $this->fork_info)
-                && array_key_exists($this->current_line, $this->fork_info[$this->current_file])
-                && in_array($md5_current_state, $this->fork_info[$this->current_file][$this->current_line]))) {
-            $this->verbose(strcolor(
-                sprintf("(%d) %d->%d (Stopping child process) Not forking at %s [%s:%s] (depth=%d) already covered...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
-                , "light green"));
-            // $this->terminated = true;
-            return false;
-        }
-        $this->fork_info[$this->current_file][$this->current_line][] = $md5_current_state;
-	    // echo serialize(($this->variables)).PHP_EOL;
-	    // echo json_encode($this->lineLogger->coverage_info).PHP_EOL;
-	    // $md5 = md5(json_encode($this->lineLogger->coverage_info) . strval(serialize($this->variables)));
-	    // echo "md5: $md5".PHP_EOL;
-        $this->process_count++;
-        $pid = getmypid();
-        foreach ($this->child_pids as $child_pid => $closed) {
-            $this->verbose(strcolor($pid.' is waiting for '.$child_pid.PHP_EOL, "light green"));
-            $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
-            if ($returned_pid !== -1) { // If there was a child, merge the information
-                $this->process_count--;
-                // Merge information from children
-                // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
-                // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
-                $data = $this->read_and_delete_shmop($child_pid, false);
-                $this->child_pids[$child_pid] = true;
-                // $data = $this->read_and_delete_shmop($child_pid);
-                if ($data) {
-                    $info = unserialize($data, [false]);
-                    // $this->verbose(print_r($info, true).PHP_EOL);
-                    // Merge fork info
-                    $this->merge_fork_info($info['fork_info']);
-                    // Merge coverage info
-                    $this->merge_line_coverage($info['line_coverage']);
-                    // Merge output
-                    $this->merge_output($info['output']);
-                }
+
+        // If in "reanimate" mode, do not fork and only execute the specific branch to be restored.
+        if ($this->reanimate) {
+            // $child_pid == 0 => We are in the child process
+            // $child_pid != 0 => We are in the parent process
+            if (in_array($md5_current_state, $this->reanimate_transcript)) {
+                $child_pid = 0;
+                $this->verbose(strcolor(sprintf('(%d) Reanimating in progress, continued to child process'.PHP_EOL, getmypid()), 'light green'));
             }
-        }
-        $child_pid = pcntl_fork();
-        if ($child_pid !== 0) {
-            $this->child_pids[$child_pid] = false;
-            // if (isset($this->parent_pid)) { // If there was any fork going on
-            //
-            // }
+            else {
+                $child_pid = random_int(0, 9999);
+                $this->verbose(strcolor(sprintf('(%d) Reanimating in progress, continued to parent process [Random child id: %d]'.PHP_EOL, getmypid(), $child_pid), 'light green'));
+            }
+            return array(getmypid(), $child_pid);
         }
         else {
-            $this->child_pids = [];
-            $this->parent_pid = $pid;
-            $this->is_child = true;
-            $this->verbose(strcolor(
-                sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
-                , "light green"));
+            // Not in "reanimate" mode, execute normally and fork as requested
+            // Populate the reanimate logs
+            $this->reanimate_transcript[] = $md5_current_state;
+            if (!$always_fork
+                && (array_key_exists($this->current_file, $this->fork_info)
+                    && array_key_exists($this->current_line, $this->fork_info[$this->current_file])
+                    && in_array($md5_current_state, $this->fork_info[$this->current_file][$this->current_line]))) {
+                $this->verbose(strcolor(
+                    sprintf("(%d) %d->%d (Stopping child process) Not forking at %s [%s:%s] (depth=%d) already covered...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
+                    , "light green"));
+                // $this->terminated = true;
+                return false;
+            }
+            $this->fork_info[$this->current_file][$this->current_line][] = $md5_current_state;
+            // echo serialize(($this->variables)).PHP_EOL;
+            // echo json_encode($this->lineLogger->coverage_info).PHP_EOL;
+            // $md5 = md5(json_encode($this->lineLogger->coverage_info) . strval(serialize($this->variables)));
+            // echo "md5: $md5".PHP_EOL;
+            $this->process_count++;
+            $pid = getmypid();
+            foreach ($this->child_pids as $child_pid => $closed) {
+                $this->verbose(strcolor($pid.' is waiting for '.$child_pid.PHP_EOL, "light green"));
+                $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
+                if ($returned_pid !== -1) { // If there was a child, merge the information
+                    $this->process_count--;
+                    // Merge information from children
+                    // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
+                    // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
+                    $data = $this->read_and_delete_shmop($child_pid, false);
+                    $this->child_pids[$child_pid] = true;
+                    // $data = $this->read_and_delete_shmop($child_pid);
+                    if ($data) {
+                        $info = unserialize($data, [false]);
+                        // $this->verbose(print_r($info, true).PHP_EOL);
+                        // Merge fork info
+                        $this->merge_fork_info($info['fork_info']);
+                        // Merge coverage info
+                        $this->merge_line_coverage($info['line_coverage']);
+                        // Merge output
+                        $this->merge_output($info['output']);
+                    }
+                }
+            }
+            $child_pid = pcntl_fork();
+            if ($child_pid !== 0) {
+                $this->child_pids[$child_pid] = false;
+            }
+            else {
+                $this->child_pids = [];
+                $this->parent_pid = $pid;
+                $this->is_child = true;
+                $this->verbose(strcolor(
+                    sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
+                    , "light green"));
+                // Store the latest state in log files
+                // We only store the state hash where we forked into the child process
+                // And not where we continue in the parent process
+                Utils::append_reanimation_log(getmypid(), $md5_current_state);
+            }
+            return array($pid, $child_pid);
         }
-        return array($pid, $child_pid);
     }
 
     protected function store_checkpoint_context($ast, $node) {
