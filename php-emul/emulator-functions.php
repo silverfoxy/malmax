@@ -306,10 +306,15 @@ trait EmulatorFunctions
         elseif (ob_get_level()==0) {
 		    ob_start();
         }
-		$current_error_handler = set_error_handler(array($this, 'userfunc_err_handler'), E_WARNING|E_ALL);
+		set_error_handler(array($this, 'userfunc_err_handler'), E_WARNING|E_ALL);
 		$this->arg_values = $argValues;
+        $this->verbose(print_r($name, true));
+		if ($name === 'array_keys') {
+		    $this->verbose(print_r($argValues, true));
+        }
 		$ret=call_user_func_array($name,$argValues); //core function
-        set_error_handler($current_error_handler);
+        // set_error_handler($current_error_handler);
+        restore_error_handler();
 		if (ob_get_level() > 0) {
 		    $this->output(ob_get_clean());
         }

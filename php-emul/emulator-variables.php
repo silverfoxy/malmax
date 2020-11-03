@@ -143,6 +143,9 @@ trait EmulatorVariables
 		if ($r instanceof SymbolicVariable) {
 		    return $r;
         }
+		elseif($key instanceof SymbolicVariable) {
+		    return new SymbolicVariable($this->name($node).'[SymbolicVariable]');
+        }
 		elseif (isset($r[$key]) && $r[$key] instanceof SymbolicVariable) {
 		    return $r[$key];
         }
@@ -157,7 +160,7 @@ trait EmulatorVariables
 	function variable_unset($node)
 	{
 		$base=&$this->symbol_table($node,$key,false);
-		if ($key!==null && !$base instanceof SymbolicVariable) {
+		if ($key!==null && !$base instanceof SymbolicVariable && !$key instanceof SymbolicVariable) {
 		    // We ignore unset on Symbolic Variables
             unset($base[$key]);
         }

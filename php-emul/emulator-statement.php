@@ -156,7 +156,9 @@ trait EmulatorStatement
                     // set some vars
                     $symbolic_iterations = $this->symbolic_loop_iterations;
                     $this->loop_depth++;
-                    $this->variable_set($node->keyVar,new SymbolicVariable('Symbolic_Foreach_keyVar'.$this->current_line));
+                    if (isset($node->keyVar)) {
+                        $this->variable_set($node->keyVar, new SymbolicVariable('Symbolic_Foreach_keyVar' . $this->current_line));
+                    }
                     $this->variable_set($node->valueVar,new SymbolicVariable('Symbolic_Foreach_valueVar'.$this->current_line));
                     for ($i = 0; $i < $symbolic_iterations; $i++) {
                         $this->run_code($node->stmts);

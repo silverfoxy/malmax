@@ -69,11 +69,16 @@ function ob_get_length_mock($emul)
 function ob_get_status_mock($emul,$full_status=false)
 {
 	$status= array(
-	    ['level'] => ob_get_level_mock($emul),
-	    ['type'] => 1,
-	    ['status'] => 0,
-	    ['name'] => "default output handler",
-	    ['del'] => 1
+        'level' => ob_get_level_mock($emul),
+        'type' => 1,
+        'status' => 0,
+        'name' => "default output handler",
+        'del' => 1
+        // ['level'] => ob_get_level_mock($emul),
+        // ['type'] => 1,
+        // ['status'] => 0,
+        // ['name'] => "default output handler",
+        // ['del'] => 1
 	);
 	if ($full_status)
 	{

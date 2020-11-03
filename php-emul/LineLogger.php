@@ -10,11 +10,16 @@ class LineLogger
      * Array [file_name => [ lines... ], ... ]
      */
     public array $coverage_info = [];
+    public array $reanimation_coverage_info = [];
     public array $raw_logs = [];
     public string $PATH_PREFIX;
 
     public function __construct(string $PATH_PREFIX) {
         $this->PATH_PREFIX = $PATH_PREFIX;
+    }
+
+    public function logTerminationReason(string $termination_reason) {
+        file_put_contents($this->PATH_PREFIX.'line_coverage_logs.txt', $termination_reason, FILE_APPEND);
     }
 
     public function logNodeCoverage(Node $node, $current_file) {
@@ -97,6 +102,7 @@ class LineLogger
     protected function updateCoverageInfo(string $current_file, int $start_line, int $end_line) {
         for($line_number = $start_line; $line_number <= $end_line; $line_number++) {
             $this->coverage_info[$current_file][$line_number] = true;
+            $this->reanimation_coverage_info[$current_file][$line_number] = true;
         }
     }
 
