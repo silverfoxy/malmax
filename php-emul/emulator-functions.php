@@ -308,10 +308,6 @@ trait EmulatorFunctions
         }
 		set_error_handler(array($this, 'userfunc_err_handler'), E_WARNING|E_ALL);
 		$this->arg_values = $argValues;
-        $this->verbose(print_r($name, true));
-		if ($name === 'array_keys') {
-		    $this->verbose(print_r($argValues, true));
-        }
 		$ret=call_user_func_array($name,$argValues); //core function
         // set_error_handler($current_error_handler);
         restore_error_handler();
@@ -343,6 +339,9 @@ trait EmulatorFunctions
             if ($arg instanceof SymbolicVariable) {
                 return new SymbolicVariable($name);
             }
+        }
+        if ($name === 'fileperms') {
+            $a ='a';
         }
         // Currently, we do not support input sensitive symbolic functions
         // if (isset($this->input_sensitive_symbolic_functions) && in_array($name, $this->input_sensitive_symbolic_functions)) {

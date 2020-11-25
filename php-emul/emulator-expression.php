@@ -437,7 +437,13 @@ trait EmulatorExpression {
                     if ($r instanceof SymbolicVariable) {
                         return new SymbolicVariable();
                     }
-                    return $l && $r;
+                    elseif ($r == false) {
+                        return false;
+                    }
+                    elseif ($l instanceof SymbolicVariable) {
+                        return new SymbolicVariable();
+                    }
+                    return true;
                 }
 			    else {
 			        return false;

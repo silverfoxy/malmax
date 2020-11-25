@@ -73,13 +73,13 @@ trait EmulatorVariables
             {
                 // If the key is a symbol, return a symbol
                 if ($key instanceof SymbolicVariable) {
-                    return new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
+                    return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
                 }
                 elseif (!array_key_exists($key, $r)) //only works for arrays, not strings
                 {
                     // If the Array itself is symbolic return a symbol
                     if (in_array($this->get_variableـname($node), $this->symbolic_parameters)) {
-                        return new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
+                        return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
                     }
                     else {
                         $this->notice("Undefined index: {$key}");

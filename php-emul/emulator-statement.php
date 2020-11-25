@@ -90,9 +90,9 @@ trait EmulatorStatement
             $symbolic_iterations = $this->symbolic_loop_iterations;
 			$i=0;
 			$this->loop_depth++;
-			for ($this->run_code($node->init), $expr_cond = $this->evaluate_expression($node->cond[0]);
-                 ($expr_cond &&
-                 $expr_cond instanceof SymbolicVariable ? $i < $symbolic_iterations : true);
+			for ($this->run_code($node->init);
+                 $expr_cond = $this->evaluate_expression($node->cond[0]), ($expr_cond === true &&
+                 ($expr_cond instanceof SymbolicVariable ? $i < $symbolic_iterations : true));
                  $this->run_code($node->loop))
 			{
 				$i++;	
@@ -138,7 +138,7 @@ trait EmulatorStatement
                 $expr_cond = $this->evaluate_expression($node->cond);
 			}
 			while ($expr_cond &&
-                   $expr_cond instanceof SymbolicVariable ? $symbolic_iterations-- > 1 : true);
+                   ($expr_cond instanceof SymbolicVariable ? $symbolic_iterations-- > 1 : true));
 			$this->loop_depth--;
 		}
 		elseif ($node instanceof Node\Stmt\Foreach_) //Loop 4

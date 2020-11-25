@@ -23,6 +23,7 @@ require_once "emulator-errors.php";
 require_once "emulator-expression.php";
 require_once "emulator-statement.php";
 require_once "LineLogger.php";
+require_once "ReanimationEntry.php";
 require_once "Checkpoint.php";
 
 /**
@@ -140,7 +141,9 @@ class Emulator
      * Holds the "state hash" of places where we forked and went into the child process
      * @var array
      */
-    public array $reanimate_transcript = [];
+    public array $reanimation_transcript = [];
+
+    public array $full_reanimation_transcript;
 
 	/**
 	 * A data storage for use by mock functions and other
@@ -561,13 +564,21 @@ class Emulator
 	{
 		$args=func_get_args();
 		$data=implode("",$args);
-		if (count($this->output_buffer))
-			$this->output_buffer[0].=$data; #FIXME: shouldn't this be -1 instead of 0? i.e the one to the last nesting?
+		if (count($this->output_buffer)) {
+            $this->output_buffer[0] .= $data; #FIXME: shouldn't this be -1 instead of 0? i.e the one to the last nesting?
+            if ($this->max_output_length !== false && strlen($this->output_buffer[0]) > $this->max_output_length) {
+                $this->output_buffer[0] = substr($this->output_buffer[0], -$this->max_output_length);
+            }
+        }
 		else
 		{
 			$this->output.=$data;
-			if ($this->direct_output)
-				echo $data;
+            if ($this->max_output_length !== false && strlen($this->output) > $this->max_output_length) {
+                $this->output = substr($this->output, -$this->max_output_length);
+            }
+			if ($this->direct_output) {
+                echo $data;
+            }
 		}
 	}
 	/**
@@ -716,6 +727,16 @@ class Emulator
 					end($base);	//move the pointer to end of base array
 					$index=key($base); //retrieve the key as index
 				}
+				elseif ($base instanceof SymbolicVariable) {
+                    if ($create)
+                    {
+                        $this->error('Creating an index within a Symbolic Array (Not supported)'.PHP_EOL);
+                    }
+                    else {
+                        $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
+                        return $symbolic_arr_dim;
+                    }
+                }
 				elseif (!isset($base[$index]))
 					if ($create)
 					{
@@ -728,6 +749,9 @@ class Emulator
 				$base=&$base[$index];
 			}
 			if ($create) {
+			    if ($base instanceof SymbolicVariable) {
+			        echo 'here';
+                }
                 if ($key instanceof SymbolicVariable) {
                     $key = $key->variable_name;
                 }
@@ -737,7 +761,7 @@ class Emulator
                     end($base);
                     $key=key($base);
                 }
-                elseif (!isset($base[$key])) //non-existent index
+                elseif (!$base instanceof SymbolicVariable && !isset($base[$key])) //non-existent index
                     $base[$key]=null;
             }
 
@@ -1043,7 +1067,7 @@ class Emulator
                 }
             }
             // Wait for other forks of concolic execution to catch up
-            if (isset($this->parent_pid)) { // If there was any fork going on
+            if (isset($this->parent_pid) && $this->parent_pid !== -1) { // If there was any fork going on
                 $pid = getmypid();
                 $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
                 $this->write_shmop($pid, serialize($data));
@@ -1052,6 +1076,11 @@ class Emulator
                 }
                 gc_collect_cycles();
                 exit(0);
+            }
+            else {
+                foreach ($this->lineLogger->raw_logs as $entry) {
+                    file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info).serialize($this->variables))), $entry, FILE_APPEND);
+                }
             }
         }
 		return $res;
@@ -1274,6 +1303,15 @@ class Emulator
 	function __destruct()
 	{
 		$this->verbose(sprintf("Memory usage: %.2fMB (%.2fMB)\n",memory_get_usage()/1024.0/1024.0,memory_get_peak_usage()/1024.0/1024.0));
+		$line_cov_size = 0;
+        foreach ($this->lineLogger->coverage_info as $file => $covered_lines) {
+            $line_cov_size += count($covered_lines);
+        }
+        $fork_size = 0;
+        foreach ($this->fork_info as $file => $forked_lines) {
+            $fork_size += count($forked_lines);
+        }
+		$this->verbose(sprintf('Coverage info: %s, Fork info: %s, Output: %s, Reanimation logs: %s'.PHP_EOL, $line_cov_size, $fork_size, strlen($this->output), count($this->reanimation_transcript)));
 	}
 
     function read_and_delete_shmop($id, $delete_shmop=true) {
@@ -1289,6 +1327,8 @@ class Emulator
         $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
         if ($delete_shmop) {
             $this->verbose(strcolor('Deleting shmem '.$id.PHP_EOL, 'red'));
+            // Set child pid closed = true
+            $this->child_pids[$id] = true;
             shmop_delete($shm_id);
             shmop_close($shm_id);
         }
@@ -1337,34 +1377,70 @@ class Emulator
 
     function merge_output($output) {
 	    $this->output .= $output;
-	    if ($this->max_output_length !== false && ($this->output) > $this->max_output_length) {
+	    if ($this->max_output_length !== false && strlen($this->output) > $this->max_output_length) {
             $this->output = substr($this->output, -$this->max_output_length);
         }
     }
 
+    protected function get_symbol_table_state() {
+	    $vars = deep_copy($this->variable_stack);
+        unset($vars['global']['_SERVER']);
+        unset($vars['global']['_ENV']);
+        unset($vars['global']['GLOBALS']['_SERVER']);
+        unset($vars['global']['GLOBALS']['_ENV']);
+        return $vars;
+    }
+
     protected function fork_execution(bool $always_fork = false) {
         // Prevent duplicate forks
-        $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variables));
-        $md5_reanimation_state = md5(json_encode($this->lineLogger->reanimation_coverage_info).serialize($this->variables));
+        // Look at line coverage + variables
+        // $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variable_stack));
+        // Look at line coverage only
+        $md5_current_state = md5(json_encode($this->lineLogger->coverage_info));
+        // $symbol_table_state = $this->get_symbol_table_state();
+        // $md5_reanimation_state = md5(json_encode($this->lineLogger->reanimation_coverage_info).serialize(end($symbol_table_state)));
+        $md5_reanimation_state = md5(json_encode($this->lineLogger->reanimation_coverage_info));
 
         // If in "reanimate" mode, do not fork and only execute the specific branch to be restored.
         if ($this->reanimate) {
+            if(!isset($this->full_reanimation_transcript)) {
+                $this->full_reanimation_transcript = $this->reanimation_transcript;
+            }
             // $child_pid == 0 => We are in the child process
             // $child_pid != 0 => We are in the parent process
-            if (in_array($md5_reanimation_state, $this->reanimate_transcript)) {
-                $child_pid = 0;
-                $this->verbose(strcolor(sprintf('(%d) Reanimating in progress, continued to child process'.PHP_EOL, getmypid()), 'light green'));
+            $forked = null;
+            $reanimation_entry = array_shift($this->reanimation_transcript);
+            if ($reanimation_entry->state_hash === $md5_reanimation_state
+                && $reanimation_entry->current_file === $this->current_file
+                && $reanimation_entry->current_line === $this->current_line) {
+                if ($reanimation_entry->forked === true) {
+                    $child_pid = 0;
+                    $this->verbose(strcolor('Reanimating in progress, continued to child process'.PHP_EOL, 'light green'));
+                }
+                else {
+                    $child_pid = random_int(0, 9999);
+                    $this->verbose(strcolor(sprintf('(%d) Reanimating in progress, continued to parent process [Random child id: %d]'.PHP_EOL, getmypid(), $child_pid), 'light green'));
+                }
+                return array(getmypid(), $child_pid);
             }
-            else {
+            elseif (count($this->reanimation_transcript) === 0) {
+                // Restore the reanimation logs and fork
+                // $this->reanimation_transcript = $this->full_reanimation_transcript;
+                // $this->verbose(strcolor(sprintf('(%d) Finished reanimating, delegating full control to process.'.PHP_EOL, getmypid()), 'light green'));
+                // $this->reanimate = false;
+                // return $this->fork_execution();
+                // Continue in the same process
                 $child_pid = random_int(0, 9999);
                 $this->verbose(strcolor(sprintf('(%d) Reanimating in progress, continued to parent process [Random child id: %d]'.PHP_EOL, getmypid(), $child_pid), 'light green'));
+                return array(getmypid(), $child_pid);
             }
-            return array(getmypid(), $child_pid);
+            else {
+                $this->error('Inconsistent state when reanimating.');
+            }
         }
         else {
             // Not in "reanimate" mode, execute normally and fork as requested
             // Populate the reanimate logs
-            $this->reanimate_transcript[] = $md5_reanimation_state .'-'.$this->current_file.':'.$this->current_line;
             if (!$always_fork
                 && (array_key_exists($this->current_file, $this->fork_info)
                     && array_key_exists($this->current_line, $this->fork_info[$this->current_file])
@@ -1372,8 +1448,10 @@ class Emulator
                 $this->verbose(strcolor(
                     sprintf("(%d) %d->%d (Stopping child process) Not forking at %s [%s:%s] (depth=%d) already covered...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
                     , "light green"));
+
                 $this->terminated = true;
                 $this->termination_reason = 'Duplicate fork';
+                // $this->reanimate_transcript[] = new ReanimationEntry($md5_reanimation_state, $this->current_file, $this->current_line, false);
                 return false;
             }
             $this->fork_info[$this->current_file][$this->current_line][] = $md5_current_state;
@@ -1391,8 +1469,7 @@ class Emulator
                     // Merge information from children
                     // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
                     // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
-                    $data = $this->read_and_delete_shmop($child_pid, false);
-                    $this->child_pids[$child_pid] = true;
+                    $data = $this->read_and_delete_shmop($child_pid);
                     // $data = $this->read_and_delete_shmop($child_pid);
                     if ($data) {
                         $info = unserialize($data, [false]);
@@ -1408,9 +1485,11 @@ class Emulator
             }
             $child_pid = pcntl_fork();
             if ($child_pid !== 0) {
+                $this->reanimation_transcript[] = new ReanimationEntry($md5_reanimation_state, $this->current_file, $this->current_line, false);
                 $this->child_pids[$child_pid] = false;
             }
             else {
+                $this->reanimation_transcript[] = new ReanimationEntry($md5_reanimation_state, $this->current_file, $this->current_line, true);
                 $this->child_pids = [];
                 $this->parent_pid = $pid;
                 $this->is_child = true;
@@ -1420,7 +1499,7 @@ class Emulator
                 // Store the latest state in log files
                 // We only store the state hash where we forked into the child process
                 // And not where we continue in the parent process
-                Utils::append_reanimation_log(getmypid(), $this->reanimate_transcript);
+                Utils::append_reanimation_log(getmypid(), $this->reanimation_transcript);
             }
             return array($pid, $child_pid);
         }
