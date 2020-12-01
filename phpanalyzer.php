@@ -966,12 +966,12 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 				// If the main condition is Symbolic then run everything
                 $run_next_case = false;
                 if ($master_condition instanceof SymbolicVariable) {
-                    $this->verbose(strcolor("Switch condition relies on SymbolicVariable, running all branches\n", "light green"), 0);
+                    $this->verbose(strcolor("Switch condition relies on SymbolicVariable, running all branches\n", "light green"), 4);
                     foreach ($node->cases as $case) {
                         if ($case->cond === null) { // If default branch, do not fork
                             $this->verbose(strcolor(
                                 sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(), $this->current_file, $this->current_line)
-                                , "light green"), 0);
+                                , "light green"), 4);
                             $this-> run_code($case->stmts);
                             if ($this->loop_condition()) {
                                 $covered_one_branch = true;
@@ -1034,7 +1034,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 }
                 else {
                     // If individual cases are Symbolic then run that one
-                    $this->verbose("Switch condition is concrete, checking branch conditions branches\n",0);
+                    $this->verbose("Switch condition is concrete, checking branch conditions branches\n",4);
                     $covered_one_branch = false;
                     $run_next_case = false;
                     foreach ($node->cases as $case) {
@@ -1113,7 +1113,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             // If none are symbolic nor concretely satisfied, run default
                             $this->verbose(strcolor(
                                 sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(),$this->current_file, $this->current_line)
-                                ,"light green"),0);
+                                ,"light green"),4);
                             $this->run_code($case->stmts);
                             $covered_one_branch=true;
                             // To take care of the last break

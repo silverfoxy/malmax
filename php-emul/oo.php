@@ -602,9 +602,7 @@ class OOEmulator extends Emulator
 	{
 		if ($node instanceof Node\Expr\PropertyFetch)
 		{
-            $this->verbose( sprintf("Access variable %s with the key %s\n",is_string($node->var)?$node->var:"Unknown", $key), 4);
-
-            $base=&$this->symbol_table($node->var,$key2,$create);
+			$base=&$this->symbol_table($node->var,$key2,$create);
 			if ($key2===null)
 			{
 				$name=is_string($node->var)?$node->var:"Unknown";
@@ -635,11 +633,6 @@ class OOEmulator extends Emulator
 				$key=$property_name;
 				return $var->properties; //reference its value only!
 			}
-			elseif($var instanceof SymbolicVariable)
-            {
-                $property_fetch_symbolic = new SymbolicVariable("propertyfetchonsymboltable");
-                return $property_fetch_symbolic;
-            }
 			elseif(is_object($var)) //native object
 			{
 				$property_name=$this->name($node->name);
@@ -652,7 +645,6 @@ class OOEmulator extends Emulator
                 // $prop->isPrivate();
 				$temp=['temp'=>&$var->{$property_name}]; //creates
 				$key='temp';
-				$this->verbose(sprintf("What returns is: %s\n", implode($temp)), 4);
 				return $temp;
 				// return $var->{$property_name}; //self notice? #TEST
 			}
@@ -664,8 +656,7 @@ class OOEmulator extends Emulator
 		}
 		elseif ($node instanceof Node\Expr\StaticPropertyFetch)
 		{
-            $this->verbose( sprintf("Access variable %s with the key %s\n",$node->var, $key), 4);
-            $classname=$this->name($node->class);
+			$classname=$this->name($node->class);
 			if ($classname instanceof EmulatorObject) //support for $object::static_method
 				$classname=$classname->classname;
 			$classname=$this->real_class($classname);
@@ -694,8 +685,7 @@ class OOEmulator extends Emulator
 		}
 		elseif ($node instanceof Node\Expr\Variable and is_string($node->name) and $node->name=="this") //$this
 		{
-            $this->verbose( sprintf("Access variable %s with the key %s\n", $node->name, $key), 4);
-            $key='temp';
+			$key='temp';
 			$t=array($key=>&$this->current_this);
 			return $t;
 		}
@@ -883,6 +873,9 @@ class OOEmulator extends Emulator
 			$base=&$this->symbol_table($node->var,$key2,false);
 			if ($key2===null)
 				return false;
+			if ($base instanceof SymbolicVariable) {
+			    $this->verbose(strcolor(sprintf('[Warning] Trying to run magic functions on Symbolic Array Object in %s:%d'.PHP_EOL, $this->current_file, $this->current_line), 'red'));
+            }
 			$obj=&$base[$key2];
 			if ($obj instanceof EmulatorObject)	
 				$prop=$this->name($node->name);

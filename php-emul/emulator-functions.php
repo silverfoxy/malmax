@@ -340,9 +340,6 @@ trait EmulatorFunctions
                 return new SymbolicVariable($name);
             }
         }
-        if ($name === 'fileperms') {
-            $a ='a';
-        }
         // Currently, we do not support input sensitive symbolic functions
         // if (isset($this->input_sensitive_symbolic_functions) && in_array($name, $this->input_sensitive_symbolic_functions)) {
         //     foreach ($argValues as $arg) {

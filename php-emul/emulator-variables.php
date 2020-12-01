@@ -35,6 +35,9 @@ trait EmulatorVariables
 	 */
 	function variable_set($node,$value=null)
 	{
+	    if ($this->current_file == '' && $this->current_line == ) {
+
+        }
 		$r=&$this->symbol_table($node,$key,true);
 		// $this->verbose(strcolor($this->get_variableـname($node).PHP_EOL, "light green"));
 		if ($key!==null) {

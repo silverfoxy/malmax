@@ -1,0 +1,5 @@
+php-emul/cache/*
+composer.lock
+PHP-Parser_original
+.idea
+vendor

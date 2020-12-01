@@ -324,6 +324,7 @@ trait EmulatorErrors
 		$this->verbose("Emulation Error: ",0);
 		$this->_error($msg,$node, E_ERROR);
 		$this->terminated=true;
+		$this->termination_reason = sprintf('Emulator Error (%s in %s at %s)'.PHP_EOL, $msg, $this->current_file, $this->current_line);
 		return null;
 	}
 	/**
