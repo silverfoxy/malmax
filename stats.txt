@@ -1,0 +1,74 @@
+Request: /mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php
+
+===== Options =====
+Array
+(
+    [f] => /mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php
+    [concolic] => 
+    [diehard] => 
+)
+/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax
+
+===== General Statistics =====
+Execution time: 0.19
+Array
+(
+    [parsed] => Array
+        (
+            [files] => Array
+                (
+                    [all] => 1
+                    [unique] => 1
+                )
+
+        )
+
+    [statements] => Array
+        (
+            [parsed] => 6
+            [visited] => Array
+                (
+                    [sum] => 5
+                    [unique] => 5
+                )
+
+            [executed] => Array
+                (
+                    [sum] => 5
+                    [unique] => 5
+                )
+
+        )
+
+    [if] => Array
+        (
+            [count] => 1
+            [branches] => 3
+            [elseifs] => 1
+            [elses] => 1
+        )
+
+    [off-branch] => Array
+        (
+            [all] => 2
+            [executed] => 2
+        )
+
+)
+
+===== Included Files =====
+Array
+(
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php] => 1
+)
+
+===== Concolic Files =====
+Array
+(
+    [/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/test.php] => 1
+)
+
+===== Constants =====
+Array
+(
+)
