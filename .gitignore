@@ -1,0 +1,7 @@
+php-emul/cache
+coverage_logs
+.idea
+index_logs.txt
+output.txt
+stats.txt
+php-emul/vendor
