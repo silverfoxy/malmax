@@ -1,0 +1,15 @@
+{
+    "php_ini": "/usr/local/lib/php.ini",
+    "include_path": ".:",
+    "constants": "PHP56_constants.ser",
+    "server": {
+        "server_name": "localhost",
+        "server_addr":  "127.0.0.1",
+        "gateway_interface": "CGI/1.1",
+        "server_software": "Apache/2.4.29 (Ubuntu)",
+        "server_protocol": "HTTP/1.1",
+        "server_admin": "",
+        "server_port": "80",
+        "server_signature": "<address>Apache/2.4.29 (Ubuntu) Server at localhost port 80</address>"
+    }
+}

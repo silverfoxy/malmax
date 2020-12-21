@@ -1,0 +1,11 @@
+{
+  "name": "silverfoxy/malmax",
+  "require": {
+    
+  },
+  "autoload": {
+    "psr-4": {
+      "malmax\\": "."
+    }
+  }
+}

@@ -1,0 +1,334 @@
+define
+ob_start
+ob_end_flush
+ob_get_clean
+ob_end_clean
+ob_flush
+ob_get_flush
+get_class
+function_exists
+func_get_args
+defined
+class_exists
+ini_set			2
+call_user_func
+call_user_func_array
+func_num_args
+func_get_arg
+func_get_args
+header_remove
+headers_sent
+header
+get_object_vars
+error_reporting 		1
+phpversion
+debug_backtrace
+flush
+dirname
+file_exists
+ini_get
+intval
+strpos
+version_compare
+extension_loaded
+date_default_timezone_set
+array_merge
+strlen
+microtime
+is_dir
+mysqli_init 			1
+strstr
+mysqli_real_connect		2
+mysqli_get_server_info
+preg_replace
+strtolower
+mysqli_get_client_info
+dirname
+mysqli_set_charset
+dirname
+mysqli_query			2
+mysqli_fetch_array
+explode
+array_change_key_case
+in_array
+implode
+is_null
+mysqli_select_db		1
+preg_match
+array_fill_keys
+is_string
+ltrim
+is_array
+mb_check_encoding
+ksort
+is_resource
+current
+mysqli_errno
+array_slice
+mysqli_error
+next
+mysqli_fetch_object
+array_pop
+is_bool
+is_object
+array_map
+spl_object_hash
+trim
+array_key_exists
+rtrim
+reset
+md5
+parse_url
+array_unique
+substr
+mb_internal_encoding
+join
+get_magic_quotes_gpc
+addslashes
+array_keys
+count
+array_shift
+str_replace
+array_walk
+is_float
+mysqli_real_escape_string
+vsprintf
+mysqli_free_result
+mysqli_more_results
+is_readable
+abs
+array_combine
+array_intersect
+
+fopen			2
+fread			2
+fclose			1
+### used in functions.php:4208 to extract metadata from file
+
+preg_quote
+array_search
+basename
+preg_replace_callback
+rawurlencode
+rawurldecode
+sprintf
+urlencode
+stripos
+parse_str
+is_int
+array_push
+is_numeric
+strip_tags
+ord
+mb_strtolower
+chr
+array_intersect_key
+krsort
+time
+mysqli_affected_rows		1
+is_scalar
+array_filter
+strtoupper
+array_values
+ceil
+preg_split
+key
+curl_init				2
+strtr
+array_reverse
+end
+html_entity_decode
+json_encode
+htmlspecialchars
+array_diff
+curl_exec				2
+min
+strtotime
+curl_error
+date
+array_fill
+preg_match_all
+addcslashes
+printf
+
+#only the ones above are used for index.php on Wordpress and its admin
+
+mysqli_num_fields
+headers_list
+mysqli_ping
+mb_substr
+error_log
+trigger_error
+dechex
+stripslashes
+urldecode
+mktime
+checkdate
+gmdate
+array_unshift
+scandir		1
+array_splice
+glob		1
+timezone_identifiers_list
+mysqli_insert_id
+strpbrk
+sys_get_temp_dir		1
+mt_rand
+is_writable
+http_build_query
+curl_version
+curl_close
+curl_getinfo
+extract					1
+compact				1
+hash_hmac
+constant
+hexdec
+ob_get_level
+number_format
+strval
+str_split
+readfile			1
+usort
+mb_convert_encoding
+str_pad
+date_format
+date_create
+timezone_open
+array_flip
+
+#these were discovered after concolic Wordpress/index.php run
+asort
+flush
+gethostbyname 			1
+uniqid
+pathinfo 				1
+uksort
+rand
+sort
+#these were discovered after concolic Wordpress/wp-admin/index.php run
+
+memory_get_usage
+ucfirst
+is_file
+strrpos
+date_default_timezone_get
+realpath
+filesize
+mysqli_connect 		1
+php_sapi_name		1
+session_get_cookie_params
+session_set_cookie_params
+session_set_save_handler
+session_name
+session_cache_limiter
+max
+base64_encode
+mysqli_fetch_row
+session_write_close
+json_decode
+mysqli_fetch_assoc
+simplexml_load_file		1
+file_get_contents 		1
+parse_ini_string
+array_replace
+substr_replace
+settype
+get_html_translation_table
+utf8_encode
+mb_strpos
+substr_count
+print_r
+sha1
+mb_strlen
+strcasecmp
+array_diff_assoc
+prev
+interface_exists
+spl_autoload_register
+is_callable
+session_status
+session_start
+register_shutdown_function
+serialize 			1
+unserialize 		1
+method_exists
+session_id
+var_dump
+ob_get_contents
+get_class_methods
+property_exists
+ob_implicit_flush
+class_alias
+spl_autoload_unregister
+set_exception_handler
+
+is_a
+class_implements
+fwrite 			1
+session_unset
+session_destroy
+iconv_set_encoding
+get_parent_class
+mysqli_num_rows
+#this is all functions used by joomla
+
+bin2hex
+hex2bin
+array_walk_recursive
+pow
+floor
+round
+str_repeat
+filter_var
+each
+set_error_handler
+crypt
+readdir 		1
+closedir 		1
+sizeof
+opendir 		1
+chdir 			1
+unlink		2
+rmdir 		2
+mkdir 		2
+get_loaded_extensions
+curl_setopt		1
+move_uploaded_file
+htmlentities
+nl2br
+getcwd		1
+fileowner	1
+filegroup 	1
+fileperms	1
+range
+gzuncompress 	1
+curl_setopt_array	1
+create_function 	1
+
+#PMA functions:
+getenv 				1
+apache_getenv 		1
+get_defined_vars
+setlocale
+openssl_random_pseudo_bytes
+setcookie
+mb_strstr
+gd_info
+stristr
+array_replace_recursive
+filemtime		1
+mb_strpos
+mb_strrpos
+mb_detect_encoding
+preg_grep
+hash_equals
+random_byes
+session_save_path
+#pma done
+
+strrev
+str_ireplace
+
+openssl_decrypt 	1
+assert

