@@ -845,17 +845,22 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 $is_symbolic = false;
                 $this->lineLogger->logNodeCoverage($node->cond, $this->current_file);
 				$main_branch_condition = $this->evaluate_expression($node->cond, $is_symbolic);
+				// $this->verbose('main branch condition: '.print_r($main_branch_condition, true).PHP_EOL);
                 if ($main_branch_condition && !$main_branch_condition instanceof SymbolicVariable) {
                     // Condition of this branch is concretely satisfied
+                    // $this->verbose('Not forking'.PHP_EOL);
                     $covered_one_branch = true;
                     $selected_branch_statements = $node->stmts;
                     $condition = $this->print_ast($node->cond);
                 }
                 elseif ($main_branch_condition instanceof SymbolicVariable) {
+                    // $this->verbose('should be forking'.PHP_EOL);
                     $forked_process_info = $this->fork_execution();
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {
+                            // $this->terminate_early = true;
+                            // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
                             $selected_branch_statements = $node->stmts;
                             $covered_one_branch = true;
                         }
@@ -885,6 +890,8 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             if ($forked_process_info !== false) {
                                 list($pid, $child_pid) = $forked_process_info;
                                 if ($child_pid === 0) {
+                                    // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
+                                    // $this->terminate_early = true;
                                     if (isset($elseif->cond)) {
                                         $condition = $this->print_ast($elseif->cond);
                                     } else {
@@ -928,7 +935,11 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 					$this->if_nesting--;
 					array_pop($this->active_conditions);
 				}
-				return ;
+				// if ($this->terminate_early) {
+				//     $this->shutdown();
+				//     exit();
+                // }
+				return;
 			}
 			else //non-concolic
 			{
@@ -1007,7 +1018,8 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                 if ($forked_process_info !== false) {
                                     list($pid, $child_pid) = $forked_process_info;
                                     if ($child_pid === 0) {
-                                        $this->verbose(strcolor(sprintf("Covering %s line.".PHP_EOL, $case->getStartLine()), "light green"));
+                                        // $this->terminate_early = true;
+                                        // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
                                         $this->run_code($case->stmts);
                                         // loop_condition reduces the number of breaks, it needs to be here
                                         if ($this->loop_condition()) {
@@ -1083,6 +1095,8 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                     if ($forked_process_info !== false) {
                                         list($pid, $child_pid) = $forked_process_info;
                                         if ($child_pid === 0) {
+                                            // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
+                                            // $this->terminate_early = true;
                                             $this->run_code($case->stmts);
                                             // loop_condition reduces the number of breaks, it needs to be here
                                             if ($this->loop_condition()) {
@@ -1122,6 +1136,10 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         }
                     }
                 }
+                // if ($this->terminate_early) {
+                //     $this->shutdown();
+                //     exit();
+                // }
                 return;
                 // If none of the cases are Symbolic nor satisfied then run the default case
 
@@ -1198,6 +1216,8 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             if ($forked_process_info !== false) {
                                 list($pid, $child_pid) = $forked_process_info;
                                 if ($child_pid === 0) {
+                                    $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
+                                    // $this->terminate_early = true;
                                     $this->run_code($case->stmts);
                                     // loop_condition reduces the number of breaks, it needs to be here
                                     if ($this->loop_condition()) {
@@ -1214,6 +1234,10 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 				// if (!empty($stmts))
 				// 	foreach ($stmts as $st)
 				// 		$this->run_code($st);
+                // if ($this->terminate_early) {
+                //     $this->shutdown();
+                //     exit();
+                // }
 				return;
 			}
 		}

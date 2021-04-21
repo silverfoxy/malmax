@@ -7,9 +7,10 @@ use PhpParser\Node;
 
 class EmulatedException extends \Exception {
 	public $object=null;
-	function __construct(EmulatorObject $e)
+	function __construct(/*EmulatorObject*/ $e)
 	{
 		$this->object=$e;
+		$this->message = $e->getMessage();
 	}
 
 
@@ -28,8 +29,10 @@ trait EmulatorErrors
 		if (!$e instanceof Exception)
 		{
 			$this->verbose("Exception is user-type, wrapping into EmulatedException...\n",5);
-			if ($this->is_a($e,"Exception"))
-				$e=new EmulatedException($e);
+			if ($this->is_a($e,"Exception")) {
+			    $this->output(print_r($e, true).PHP_EOL);
+                $e = new EmulatedException($e);
+            }
 			else
 				$this->error("Inconsistency: exception of type unrelated to Exception found");
 		}
@@ -340,7 +343,7 @@ trait EmulatorErrors
 		// $this->output($msg." in ".$this->current_file." on line ".$this->current_line.PHP_EOL);
 		if ($details)
 		{
-			print_r($node);
+			// print_r($node);
 			if ($this->verbose>=2)
 			{
 				$this->verbose("Emulator Backtrace:\n");

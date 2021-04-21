@@ -146,8 +146,14 @@ trait EmulatorFunctions
 	 * @return mixed return value of function
 	 */
 	protected function run_function($function,$args,EmulatorExecutionContext $context,$trace_args=array(),$vars=[])
-	{
+    {
 		$name=$trace_args['function'];
+        if ($name === '_buildPathPart') {
+            $brk = 1;
+        }
+        if ($name === 'getChild') {
+            $brk = 1;
+        }
 		if (isset($trace_args['class']))
 			$name=$trace_args['class'].$trace_args['type'].$name;
 		$processed_args=$this->user_function_prologue($name,$function->params,$args);
@@ -157,7 +163,7 @@ trait EmulatorFunctions
 		//     $this->verbose(strcolor(sprintf("Fetching %s:%s from function summaries.\n", $name, get_class($function_summary)), "light green"));
 		//     return $function_summary;
         // }
-		$this->lineLogger->logFunctionCall($this->current_file, $name, $processed_args);
+		// $this->lineLogger->logFunctionCall($this->current_file, $name, $processed_args);
 		$backups=[];
 		//IMPORTANT: these context and backtrace should be set AFTER prologue and BEFORE function execution,
 		//because prologue might have expressions that reference the current context.
@@ -185,6 +191,7 @@ trait EmulatorFunctions
 
 		$this->pop(); //pushed in prologue
         // $this->try_add_function_summary($function, $processed_args, $res);
+        // $this->lineLogger->logFunctionCallReturnValue($this->current_file, $name, $processed_args, $res);
 		return $res;
 	}
 	/**
@@ -370,6 +377,9 @@ trait EmulatorFunctions
 	{
 	    // If its a Symbolic function, return a Symbol.
         // If its Symbolic if the args are symbolic, wait for args to be resolved.
+        if ($name === 'realQuery') {
+            $brk = 1;
+        }
         if (isset($this->symbolic_functions) && in_array($name, $this->symbolic_functions)) {
             return new SymbolicVariable($name);
         }

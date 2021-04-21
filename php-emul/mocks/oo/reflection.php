@@ -22,11 +22,11 @@ class ReflectionMethod_mock extends BaseReflection_mock
 	protected $class,$method;
 	function &myclass()
 	{
-		return $this->emul()->classes[strtolower($this->class)];
+		return $this->emul()->get_class_object($this->class);
 	}
 	function &method()
 	{
-		return $this->emul()->classes[strtolower($this->class)]->methods[strtolower($this->method)];
+		return $this->emul()->get_class_object($this->class)->methods[strtolower($this->method)];
 	}
 	function __construct($class,$method=null)
 	{
@@ -54,7 +54,7 @@ class ReflectionProperty_mock extends BaseReflection_mock
 	protected $prop,$class;
 	function &myclass()
 	{
-		return $this->emul()->classes[strtolower($this->class)];
+		return $this->emul()->get_class_object($this->class);
 
 	}
 	function _isPrivate()
@@ -73,7 +73,7 @@ class ReflectionClass_mock extends BaseReflection_mock
 	protected $class="";
 	function &myclass()
 	{
-		return $this->emul()->classes[strtolower($this->class)];
+		return $this->emul()->get_class_object($this->class);
 
 	}
 	function __construct($arg)

@@ -157,15 +157,19 @@ trait EmulatorVariables
 		$r=$this->symbol_table($node,$key,false);
 		$this->error_restore();
 		if ($r instanceof SymbolicVariable) {
+            // $this->verbose('Variable isset -> '.print_r($r, true).PHP_EOL);
 		    return $r;
         }
 		elseif($key instanceof SymbolicVariable) {
+		    // $this->verbose('Variable isset -> Symbolic'.PHP_EOL);
 		    return new SymbolicVariable($this->name($node).'[SymbolicVariable]');
         }
 		elseif (isset($r[$key]) && $r[$key] instanceof SymbolicVariable) {
+            // $this->verbose('Variable isset -> '.print_r($r[$key], true).PHP_EOL);
 		    return $r[$key];
         }
 		else {
+            // $this->verbose('Variable isset -> '.$key!==null and isset($r[$key]) ? 'true' : 'false'.PHP_EOL);
             return $key!==null and isset($r[$key]);
         }
 	}

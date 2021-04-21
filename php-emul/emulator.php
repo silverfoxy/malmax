@@ -66,7 +66,7 @@ class Emulator
      * Emulator constructor
      * init the emulator
      */
-    function __construct($init_environ=null, $predefined_constants=null)
+    function __construct($init_environ=null, $httpverb=null, $predefined_constants=null, $reanimation_callback_object=null, $correlation_id=null)
     {
         $this->state=array_flip(['variables','constants','included_files'
             ,'current_namespace','current_active_namespaces'
@@ -79,10 +79,14 @@ class Emulator
             ,'execution_context_stack' //all previous contexts, i.e. all current_* vars
             ,'data'
         ]);
+        $this->reanimation_callback_object = $reanimation_callback_object;
         $this->parser = (new ParserFactory())->create(ParserFactory::PREFER_PHP7);
         $this->printer = new Standard;
+        $this->initenv = $init_environ;
+        $this->httpverb = $httpverb;
         $this->init($init_environ, $predefined_constants);
-        $this->lineLogger = new LineLogger(Utils::$PATH_PREFIX);
+        $this->correlation_id = $correlation_id;
+        $this->lineLogger = new LineLogger(Utils::$PATH_PREFIX, $this->correlation_id);
         if(!defined('EXECUTED_FROM_PHPUNIT')) {
             define('EXECUTED_FROM_PHPUNIT', false);
         }
@@ -95,6 +99,13 @@ class Emulator
 
     public array $ast;
 
+    public array $initenv;
+    public string $httpverb;
+    public string $entry_file;
+    // unique execution identifier
+    public string $correlation_id;
+
+
     public $symbolic_loop_iterations;
 
     public $child_pids = [];
@@ -106,7 +117,16 @@ class Emulator
     public string $cache_limiter;
     public string $session_name = 'PHPSESSID';
 
+    public \ReanimationState $reanimation_state;
+
+    // Includes the hash and file/line info about forked processes at the time of fork
     public array $fork_info = [];
+    // Includes the information about forked processes after they have been terminated
+    public array $fork_stats = [];
+    // Duplicate line coverage threshold
+    public const DUPLICATE_STATE_THRESHOLD = 30;
+    // Total number of forks allowed at any line
+    public const FORK_THRESHOLD = 30;
     public array $symbolic_parameters = [];
     public array $symbolic_functions = [];
     public array $input_sensitive_symbolic_functions = [];
@@ -121,6 +141,7 @@ class Emulator
     public array $symbolic_variables = [];
 
     public int $execution_mode = ExecutionMode::OFFLINE;
+    public $reanimation_callback_object;
 
     public Emulator $last_checkpoint;
     public array $last_checkpoint_ast = [];
@@ -130,7 +151,7 @@ class Emulator
     public array $overall_coverage_info = [];
 
     public bool $immutable_symbolic_variables = true;
-    public $max_output_length = false;
+    public int $max_output_length = 10000;
 
     /**
      * If true, the specific child process will be replayed as the parent process
@@ -145,7 +166,7 @@ class Emulator
      */
     public array $reanimation_transcript = [];
 
-    public array $full_reanimation_transcript;
+    public array $full_reanimation_transcript = [];
 
     /**
      * A data storage for use by mock functions and other
@@ -216,7 +237,7 @@ class Emulator
      * @var string
      */
     protected $current_node,$current_statement_index;
-    public $current_function,$current_file,$current_line;
+    public $current_function,$current_file,$current_line,$magic_function;
     protected $current_namespace="";
     protected $current_class = null;
     protected $current_closure_scope = null;
@@ -360,6 +381,13 @@ class Emulator
      * @var array
      */
     public $shutdown_functions=[];
+
+    /**
+     * List of class destructors
+     * Each element is an EmulatorObject instance that has a __destruct method
+     * @var array
+     */
+    public $destructors = [];
     /**
      * Retains a list of active namespaces via "use" PHP statement
      * does not include the namespace we are in
@@ -412,11 +440,15 @@ class Emulator
             // If not found in include_path, try current script path and local dir
             if (!$found) {
                 $file_candidate =realpath(dirname($this->current_file)."/".$file_name); //first check the directory of the file using include (as per php)
-                if (!file_exists($file_candidate) or !is_file($file_candidate)) //second check current dir
-                    $file_name=realpath($this->main_directory . $file_name);
-                else {
-                    $file_name = $file_candidate;
+                if (!file_exists($file_candidate) or !is_file($file_candidate)) {
+                    //second check current dir
+                    $file_candidate = realpath($this->main_directory) . "/" . $file_name;
                 }
+                // If not found, try current directory
+                if (!file_exists($file_candidate) or !is_file($file_candidate)) {
+                    $file_candidate = getcwd() . "/" . $file_name;
+                }
+                $file_name = $file_candidate;
             }
         }
         return $file_name;
@@ -512,8 +544,19 @@ class Emulator
         }
         $this->variable_stack['global']=array(); //the first key in var_stack is the global scope
         $this->reference_variables_to_stack();
-        foreach ($init_environ as $k=>$v)
-            $this->variables[$k]=$v;
+        foreach ($init_environ as $k=>$v) {
+            if ($k === '_SESSION') {
+                foreach (array_keys($v) as $key) {
+                    $v[$key] = new SymbolicVariable();
+                }
+            }
+            else if ($k === '_COOKIE') {
+                foreach (array_keys($v) as $key) {
+                    $v[$key] = new SymbolicVariable();
+                }
+            }
+            $this->variables[$k] = $v;
+        }
         $this->variables['GLOBALS']=&$this->variables; //as done by PHP itself
         if ($this->auto_mock)
             foreach(get_defined_functions()['internal'] as $function) //get_defined_functions gives 'internal' and 'user' subarrays.
@@ -526,13 +569,28 @@ class Emulator
             $this->constants = $predefined_constants;
         }
     }
+    protected function destruct()
+    {
+        $this->verbose('Running class destructors...'.PHP_EOL);
+        foreach ($this->destructors as $obj_with_destructor) {
+            $class_index = strtolower($obj_with_destructor->classname);
+            foreach ($this->ancestry($class_index) as $class) //find the first available destructor
+            {
+                if ($this->user_method_exists($class,"__destruct"))
+                    $destructor=array($class,"__destruct");
+                if (isset($destructor)) break;
+            }
+            $this->run_user_method($obj_with_destructor, $destructor[1], [], $destructor[0]);
+        }
+    }
     /**
      * Called after execution finished
      * Runs shutdown functions
      */
-    protected function shutdown()
+    public function shutdown()
     {
         $this->verbose("Shutting down...".PHP_EOL);
+        // $this->decrement_pid_count();
         $bu=$this->terminated;
         $this->terminated=false;
         foreach ($this->shutdown_functions as $shutdown_function)
@@ -542,8 +600,12 @@ class Emulator
                     $name=$shutdown_function->callback[0]->classname."->".$shutdown_function->callback[1];
                 else
                     $name=implode("::",$shutdown_function->callback);
-            else
-                $name=$shutdown_function->callback;
+            else {
+                $name = $shutdown_function->callback;
+                if ($name instanceof EmulatorClosure) {
+                    $name = 'Closure';
+                }
+            }
             $this->verbose( "Calling shutdown function: {$name}()\n");
             $this->call_function($shutdown_function->callback,$shutdown_function->args);
         }
@@ -555,10 +617,18 @@ class Emulator
             while (count($this->output_buffer))
                 $r.=array_shift($this->output_buffer);
             $this->output($r);
-        }        $this->verbose("Dumping reanimation logs.".PHP_EOL);
-        if (!$this->reanimate) {
-            Utils::append_reanimation_log(getmypid(), $this->reanimation_transcript);
         }
+        $this->verbose("Dumping reanimation logs.".PHP_EOL);
+        if (!$this->reanimate) {
+            Utils::append_reanimation_log($this->correlation_id, $this->full_reanimation_transcript);
+        }
+        // Sync the latest coverage and fork information
+        // $data = ['fork_info' => $this->fork_info, 'fork_stats' => $this->fork_stats, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
+        // $data = ['fork_info' => [], 'line_coverage' => [], 'output' => $this->output];
+        // $this->verbose("Updating fork info.".PHP_EOL);
+        // $this->update_shared_coverage_info();
+        $time_elapsed_secs = microtime(true) - $this->start_time;
+        $this->verbose(sprintf("Execution time: %d seconds.".PHP_EOL, $time_elapsed_secs));
     }
 
     /**
@@ -570,6 +640,7 @@ class Emulator
     {
         $args=func_get_args();
         $data=implode("",$args);
+        Utils::log_output(getmypid(), $data);
         if (count($this->output_buffer)) {
             $this->output_buffer[0] .= $data; #FIXME: shouldn't this be -1 instead of 0? i.e the one to the last nesting?
             if ($this->max_output_length !== false && strlen($this->output_buffer[0]) > $this->max_output_length) {
@@ -740,7 +811,9 @@ class Emulator
                 elseif ($base instanceof SymbolicVariable) {
                     if ($create)
                     {
-                        $this->error('Creating an index within a Symbolic Array (Not supported)'.PHP_EOL);
+                        $this->warning('Creating an index within a Symbolic Array (Not supported)'.PHP_EOL);
+                        $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
+                        return $symbolic_arr_dim;
                     }
                     else {
                         $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
@@ -781,7 +854,7 @@ class Emulator
             // $this->verbose(print_r($key, true).PHP_EOL);
             if ($key instanceof SymbolicVariable || (!$create && (in_array(strval($key), $this->symbolic_parameters)))
                 || (in_array(strval($key2), $this->symbolic_parameters) && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base)))) {
-                $symbol = new SymbolicVariable(sprintf('%s[%s]', $node->var->name, $key));
+                $symbol = new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
                 return $symbol;
             }
             // else {
@@ -904,8 +977,13 @@ class Emulator
      */
     function namespaced_name($node)
     {
-        if (is_string($node))
+        // Exclude self / parent / etc.
+        if (is_string($node)) {
+            if (in_array($node, ['self', 'static', 'parent'])) {
+                return $node;
+            }
             return $this->fully_qualify_name($node);
+        }
         elseif ($node instanceof Node\Name\FullyQualified)
             return implode("\\",$node->parts);
         elseif ($node instanceof Node\Name) // or $node instanceof Node\Name\Relative)
@@ -921,7 +999,9 @@ class Emulator
      */
     protected function fully_qualify_name($name)
     {
-        if (!$this->namespaces_enabled) {
+        // If namespaces are not enabled
+        // or name is already fully qualified (starts with \)
+        if (!$this->namespaces_enabled || substr($name, 0, 1) === '\\') {
             return $name;
         }
         // if ($name[0]=="\\")
@@ -1034,6 +1114,7 @@ class Emulator
      */
     function start($file,$chdir=true)
     {
+        $this->start_time = microtime(true);
         $this->entry_file=realpath($file);
         if (!$this->entry_file)
         {
@@ -1051,6 +1132,7 @@ class Emulator
         if(!isset($this->termination_reason)) {
             $this->termination_reason = 'Finished running the script';
         }
+        $this->destruct();
         $this->shutdown();
         // restore_exception_handler();
         if (EXECUTED_FROM_PHPUNIT && ob_get_level() === 0) {
@@ -1058,48 +1140,6 @@ class Emulator
         }
         restore_error_handler();
         chdir($this->original_dir);
-        if ($this->execution_mode === ExecutionMode::ONLINE) {
-            // Handle concurrency
-            // Merge child coverage and fork information
-            foreach ($this->child_pids as $child_pid => $closed) {
-                // $this->verbose('Merging '.$child_pid.PHP_EOL);
-                $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
-                // Merge information from children
-                // $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
-                // $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
-                $data = $closed ? false : $this->read_and_delete_shmop($child_pid);
-                if($data) {
-                    $info = unserialize($data, [false]);
-                    // $this->verbose(print_r($info, true).PHP_EOL);
-                    // Merge fork info
-                    $this->merge_fork_info($info['fork_info']);
-                    // Merge coverage info
-                    $this->merge_line_coverage($info['line_coverage']);
-                    // Merge output
-                    $this->merge_output($info['output']);
-                }
-            }
-            // Wait for other forks of concolic execution to catch up
-            // $this->verbose('Parent pid '.$this->parent_pid.PHP_EOL);
-            if (isset($this->parent_pid) && $this->parent_pid !== -1) { // If there was any fork going on
-                $pid = getmypid();
-                $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
-                $this->write_shmop($pid, serialize($data));
-                foreach ($this->lineLogger->raw_logs as $entry) {
-                    file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $entry, FILE_APPEND);
-                }
-                file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $this->termination_reason, FILE_APPEND);
-                file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s_verbose.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), print_r($this->fork_info_verbose, true), FILE_APPEND);
-                gc_collect_cycles();
-                exit(0);
-            }
-            else {
-                foreach ($this->lineLogger->raw_logs as $entry) {
-                    file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $entry, FILE_APPEND);
-                }
-                file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s_verbose.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $this->fork_info_verbose, FILE_APPEND);
-            }
-        }
         return $res;
     }
 
@@ -1242,7 +1282,7 @@ class Emulator
             {
                 $node_type = get_class($node);
                 $this->lineLogger->logNodeCoverage($node, $this->current_file);
-                if ($this->execution_mode === ExecutionMode::OFFLINE && $save_checkpoint) {
+                if ($this->execution_mode === ExecutionMode::OFFLINE) {
                     $this->store_checkpoint_context($ast, $index);
                 }
                 $this->run_statement($node);
@@ -1331,7 +1371,37 @@ class Emulator
         $this->verbose(sprintf('Coverage info: %s, Fork info: %s, Output: %s, Reanimation logs: %s'.PHP_EOL, $line_cov_size, $fork_size, strlen($this->output), count($this->reanimation_transcript)));
     }
 
-    function read_and_delete_shmop($id, $delete_shmop=true) {
+    protected function cleanup_shared_memory() {
+        $this->read_shmop(-1, true);
+        $this->read_shmop(-2, true);
+    }
+
+    protected function update_shared_coverage_info(bool $only_read=false) {
+        $semaphore = sem_get(-1);
+        if (!$semaphore) {
+            $this->error('Failed to create the semaphore'.PHP_EOL);
+        }
+        sem_acquire($semaphore);
+        $coverage_info = $this->read_shmop(-1, !$only_read);
+        if ($coverage_info) {
+            $info = unserialize($coverage_info, [false]);
+            // $this->verbose(print_r($info, true).PHP_EOL);
+            // Merge fork info
+            $this->merge_fork_info($info['fork_info']);
+            // Merge coverage info
+            $this->merge_line_coverage($info['line_coverage']);
+            // Merge output
+            $this->merge_output($info['output']);
+        }
+        if (!$only_read) {
+            // $this->verbose('Updating shared fork info: '.PHP_EOL.print_r($this->fork_info, true).PHP_EOL);
+            $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
+            $this->write_shmop(-1, serialize($data));
+        }
+        sem_release($semaphore);
+    }
+
+    function read_shmop($id, $delete_shmop=true) {
         // @ to suppress the warning when shmem does not exist
         $original_error_handler = set_error_handler(function() { return true; });
         @$shm_id = shmop_open($id, "a", 0, 0);
@@ -1341,9 +1411,9 @@ class Emulator
             $this->verbose(strcolor('Failed to read shmem '.$id.PHP_EOL, 'red'));
             return false;
         }
-        else {
-            $this->verbose(strcolor('Successfully read shmem '.$id.PHP_EOL, 'red'));
-        }
+        // else {
+        //     $this->verbose(strcolor('Successfully read shmem '.$id.PHP_EOL, 'red'));
+        // }
         $sh_data = shmop_read($shm_id, 0, shmop_size($shm_id));
         if ($delete_shmop) {
             $this->verbose(strcolor('Deleting shmem '.$id.PHP_EOL, 'red'));
@@ -1355,45 +1425,117 @@ class Emulator
         return $sh_data;
     }
 
-    function write_shmop($id, string $data) {
-        $shm_id = shmop_open($id, "c", 0644, strlen($data));
+    function get_pid_count() {
+        $pid_count = intval($this->read_shmop(-2, false));
+        return $pid_count;
+    }
+
+    function increment_pid_count() {
+        $semaphore = sem_get(-2);
+        if (!$semaphore) {
+            $this->error('Failed to create the semaphore'.PHP_EOL);
+        }
+        sem_acquire($semaphore);
+        $pid_count = $this->read_shmop(-2, false);
+        if ($pid_count === false) {
+            // Create the shared memory if it does not exist
+            $this->write_shmop(-2, '2', true);
+            $this->verbose('New pid count: 2'.PHP_EOL);
+            sem_release($semaphore);
+            return 2;
+        }
+        else {
+            $pid_count = intval($pid_count);
+        }
+        $pid_count++;
+        $this->verbose('New pid count: '.$pid_count.PHP_EOL);
+        $this->write_shmop(-2, strval($pid_count), false);
+        sem_release($semaphore);
+        return $pid_count;
+    }
+
+    function decrement_pid_count() {
+        // Make sure we have forked when we get here
+        // sometimes its the only pid shutting down.
+        if (count($this->fork_info) === 0) {
+            return 0;
+        }
+        $semaphore = sem_get(-2);
+        if (!$semaphore) {
+            $this->error('Failed to create the semaphore'.PHP_EOL);
+        }
+        sem_acquire($semaphore);
+        $pid_count = $this->read_shmop(-2, false);
+        if ($pid_count === false) {
+            sem_release($semaphore);
+            $this->error('PID count returned false');
+        }
+        else {
+            $pid_count = intval($pid_count);
+        }
+        $pid_count--;
+        $this->write_shmop(-2, strval($pid_count), false);
+        $this->verbose('Decrementing PID to '.$pid_count.PHP_EOL);
+        sem_release($semaphore);
+        return $pid_count;
+    }
+
+    function write_shmop($id, string $data, $create_shmop=true) {
+        if ($create_shmop) {
+            $shm_id = shmop_open($id, "c", 0644, strlen($data));
+        }
+        else {
+            $shm_id = shmop_open($id, "w", 0644, strlen($data));
+        }
         if (!$shm_id) {
             $this->verbose(strcolor('Couldn\'t create shared memory segment '.$id.PHP_EOL, 'red'));
         } else {
-            if(shmop_write($shm_id, $data, 0) != strlen($data)) {
+            // if(shmop_write($shm_id, $data, 0) != strlen($data)) {
+            if(shmop_write($shm_id, $data, 0) === false) {
                 $this->verbose(strcolor('Couldn\'t create shared memory segment '.$id.PHP_EOL, 'red'));
             }
             else {
-                $this->verbose(strcolor('Created shared memory segment '.$id.PHP_EOL, 'red'));
+                $this->verbose(strcolor('Writing to shared memory segment '.$id.PHP_EOL, 'red'));
             }
         }
     }
 
-    function merge_line_coverage($coverage_info) {
+    function merge_line_coverage($coverage_info, $existing_coverage=false) {
+        if (!isset($coverage_info)) {
+            return $existing_coverage;
+        }
         foreach ($coverage_info as $filename => $lines) {
             // $this->verbose(print_r($this->lineLogger->coverage_info[$filename], true));
             // $this->verbose(print_r($coverage_info[$filename], true));
             foreach ($lines as $line => $covered) {
-                $this->lineLogger->coverage_info[$filename][$line] = true;
+                if ($existing_coverage !== false) {
+                    $existing_coverage[$filename][$line] = true;
+                }
+                else {
+                    $this->lineLogger->coverage_info[$filename][$line] = true;
+                }
             }
         }
-        return $this->lineLogger->coverage_info;
+        if ($existing_coverage !== false) {
+            $this->verbose(array_keys($existing_coverage).PHP_EOL);
+            return $existing_coverage;
+        }
+        else {
+            return $this->lineLogger->coverage_info;
+        }
+    }
+
+    function merge_fork_stats($fork_stats) {
+        if (isset($fork_stats)) {
+            $this->fork_stats = $fork_stats;
+        }
+        return $this->fork_stats;
     }
 
     function merge_fork_info($fork_info) {
         foreach ($fork_info as $filename => $lines) {
-            foreach ($lines as $line => $md5_hashes) {
-                foreach ($md5_hashes as $md5) {
-                    if (array_key_exists($filename, $this->fork_info)
-                        && array_key_exists($line, $this->fork_info[$filename])) {
-                        if (!(in_array($md5, $this->fork_info[$filename][$line]))) {
-                            $this->fork_info[$filename][$line][] = $md5;
-                        }
-                    }
-                    else {
-                        $this->fork_info[$filename][$line] = [$md5];
-                    }
-                }
+            foreach ($lines as $line => $covered) {
+                $this->fork_info[$filename][$line] = $covered;
             }
         }
     }
@@ -1415,138 +1557,122 @@ class Emulator
     }
 
     protected function fork_execution(bool $always_fork = false) {
-        file_put_contents('/home/ubuntu/fork_lines.txt', sprintf('%s:%d:%d'.PHP_EOL, $this->current_file, $this->current_line, getmypid()), FILE_APPEND);
+        // $this->verbose('forking: '.($this->reanimate ? 'true' : 'false').PHP_EOL);
+        // $this->verbose('reanimation transcript: '.sizeof($this->reanimation_transcript).PHP_EOL);
+        // file_put_contents('/home/ubuntu/fork_lines.txt', sprintf('%s:%d:%d'.PHP_EOL, $this->current_file, $this->current_line, getmypid()), FILE_APPEND);
         // Prevent duplicate forks
         // Look at line coverage + variables
-        // $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variable_stack));
+        $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variable_stack));
+        $md5_current_line_coverage_state = md5(json_encode($this->lineLogger->coverage_info));
         // Look at line coverage only
         // $md5_current_state = md5(json_encode($this->lineLogger->coverage_info) . json_encode($this->symbolic_variables));
-        $md5_current_state = md5(json_encode($this->lineLogger->coverage_info));
+        // $current_coverage_state = $this->lineLogger->coverage_info;
+        // $md5_current_state = md5(serialize($this->variable_stack));
         // $symbol_table_state = $this->get_symbol_table_state();
         // $md5_reanimation_state = md5(json_encode($this->lineLogger->reanimation_coverage_info).serialize(end($symbol_table_state)));
         $md5_reanimation_state = md5(json_encode($this->lineLogger->reanimation_coverage_info));
 
         // If in "reanimate" mode, do not fork and only execute the specific branch to be restored.
-        $fork_allowed = true;
-        if ($this->reanimate && count($this->reanimation_transcript) > 0) {
-            if(!isset($this->full_reanimation_transcript)) {
-                $this->full_reanimation_transcript = $this->reanimation_transcript;
-            }
-            // $child_pid == 0 => We are in the child process
-            // $child_pid != 0 => We are in the parent process
-            $forked = null;
-            $reanimation_entry = array_shift($this->reanimation_transcript);
-            if ($reanimation_entry->state_hash === $md5_reanimation_state
-                && $reanimation_entry->current_file === $this->current_file
-                && $reanimation_entry->current_line === $this->current_line) {
-                if ($reanimation_entry->forked === true) {
-                    $child_pid = 0;
-                    $this->verbose(strcolor(sprintf('Reanimating, continued to child process (%s:%d)'.PHP_EOL, $this->current_file, $this->current_line), 'light green'));
+        if ($this->reanimate) {
+            if (sizeof($this->reanimation_transcript) > 0) {
+                if (sizeof($this->full_reanimation_transcript) < 1) {
+                    // Flip the condition that we take the different branch on for future executions
+                    $last_reanimation_entry = array_pop($this->reanimation_transcript);
+                    $last_reanimation_entry['forked'] = !$last_reanimation_entry['forked'];
+                    array_push($this->reanimation_transcript, $last_reanimation_entry);
+                    $this->full_reanimation_transcript = $this->reanimation_transcript;
                 }
-                else {
-                    $child_pid = random_int(0, 9999);
-                    $this->verbose(strcolor(sprintf('Reanimating in progress, continued to parent process [Random child id: %d] (%s:%d)'.PHP_EOL, $child_pid, $this->current_file, $this->current_line), 'light green'));
+                $reanimation_entry = null;
+                $reanimation_entry = array_shift($this->reanimation_transcript);
+                if (sizeof($this->reanimation_transcript) === 0) {
+                    $this->reanimate = false;
                 }
-                return array(getmypid(), $child_pid);
+                // Fetch from ordered transcripts
+                // $child_pid == 0 => We are in the child process
+                // $child_pid != 0 => We are in the parent process
+                $forked = null;
+                // If not the last condition, follow the parent
+                // If last condition, flip to the other branch
+                // if (count($this->reanimation_transcript) > 0) {
+                //     // Follow the parent
+                //     $reanimation_entry['forked'] = !$reanimation_entry['forked'];
+                // }
+                // else {
+                //     $this->notice(print_r($reanimation_entry, true));
+                // }
+                if ($reanimation_entry['current_file'] === $this->current_file
+                    && $reanimation_entry['current_line'] === $this->current_line) {
+                    if ($reanimation_entry['forked'] === true) {
+                        $child_pid = 0;
+                        $this->verbose(strcolor(sprintf('Reanimating, continued to child process (%s:%d)' . PHP_EOL, $this->current_file, $this->current_line), 'light green'));
+                    } else {
+                        // $this->notice(PHP_EOL.print_r($reanimation_entry, true));
+                        $child_pid = random_int(1, 9999);
+                        $this->verbose(strcolor(sprintf('Reanimating in progress, continued to parent process [Random child id: %d] (%s:%d)' . PHP_EOL, $child_pid, $this->current_file, $this->current_line), 'light green'));
+                    }
+                    // $this->notice('Child pid: '.$child_pid.PHP_EOL);
+                    // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
+                    return array(getmypid(), $child_pid);
+                } else {
+                    $this->notice(print_r($reanimation_entry, true));
+                    $this->notice($this->current_file . ':' . $this->current_line);
+                    $this->notice($md5_reanimation_state);
+                    $this->error('Inconsistent state when reanimating.');
+                    // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
+                }
             }
             else {
-                $this->error('Inconsistent state when reanimating.');
+                $this->reanimate = false;
             }
         }
         else {
             // Not in "reanimate" mode, execute normally and fork as requested
             // Populate the reanimate logs
-            // $this->fork_info_verbose[$this->current_file][$this->current_line][$md5_current_state] = $this->lineLogger->coverage_info;
-            $this->fork_info_verbose = $this->lineLogger->coverage_info;
-            if (!$always_fork
-                && (array_key_exists($this->current_file, $this->fork_info)
-                    && array_key_exists($this->current_line, $this->fork_info[$this->current_file])
-                    && in_array($md5_current_state, $this->fork_info[$this->current_file][$this->current_line]))) {
-                $this->verbose(strcolor(
-                    sprintf("(%d) %d->%d (Stopping child process) Not forking at %s [%s:%s] (depth=%d) already covered...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
-                    , "light green"));
-                $this->verbose($md5_current_state.PHP_EOL);
-                $this->terminated = true;
-                $this->termination_reason = 'Duplicate fork';
-                // $this->reanimate_transcript[] = new ReanimationEntry($md5_reanimation_state, $this->current_file, $this->current_line, false);
-                $fork_allowed = false;
-                if (isset($this->parent_pid) && $this->parent_pid !== -1) { // If there was any fork going on
-                    $pid = getmypid();
-                    // $data = ['fork_info' => $this->fork_info, 'line_coverage' => [], 'output' => $this->output];
-                    $data = ['fork_info' => $this->fork_info, 'line_coverage' => $this->lineLogger->coverage_info, 'output' => $this->output];
-                    // $data = ['fork_info' => [], 'line_coverage' => [], 'output' => $this->output];
-                    $this->write_shmop($pid, serialize($data));
-                    foreach ($this->lineLogger->raw_logs as $entry) {
-                        file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $entry, FILE_APPEND);
-                    }
-                    file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $this->termination_reason, FILE_APPEND);
-                    file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s_verbose.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), print_r($this->fork_info_verbose, true), FILE_APPEND);
-                }
-                else {
-                    foreach ($this->lineLogger->raw_logs as $entry) {
-                        file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $entry, FILE_APPEND);
-                    }
-                    file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), $this->termination_reason, FILE_APPEND);
-                    file_put_contents(sprintf(Utils::$PATH_PREFIX.'line_coverage_logs/%d_%s_verbose.txt', getmypid(), md5(json_encode($this->lineLogger->coverage_info))), print_r($this->fork_info_verbose, true), FILE_APPEND);
-                }
-                $this->verbose("Dumping reanimation logs.".PHP_EOL);
-                if (!$this->reanimate) {
-                    Utils::append_reanimation_log(getmypid(), $this->reanimation_transcript);
-                }
-                gc_collect_cycles();
-                exit(0);
-            }
             $this->fork_info[$this->current_file][$this->current_line][] = $md5_current_state;
-            // echo serialize(($this->variables)).PHP_EOL;
-            // echo json_encode($this->lineLogger->coverage_info).PHP_EOL;
-            // $md5 = md5(json_encode($this->lineLogger->coverage_info) . strval(serialize($this->variables)));
-            // echo "md5: $md5".PHP_EOL;
             $this->process_count++;
 
             $pid = getmypid();
-            $child_pid = pcntl_fork();
-            if ($child_pid !== 0) {
-                $this->reanimation_transcript[] = new ReanimationEntry($md5_reanimation_state, $this->current_file, $this->current_line, false);
-                $this->child_pids[$child_pid] = false;
-                $this->verbose('Child pids: '.print_r($this->child_pids, true).PHP_EOL);
-                // The parent waits for the child to return
-                $pid = getmypid();
-                foreach ($this->child_pids as $child_pid => $closed) {
-                    $this->verbose(strcolor($pid.' is waiting for '.$child_pid.PHP_EOL, "light green"));
-                    $returned_pid = pcntl_waitpid($child_pid, $status); // Wait for children to finish
-                    if ($returned_pid !== -1) { // If there was a child, merge the information
-                        $this->process_count--;
-                        // Merge information from children
-                        $this->verbose('Merging child info '.$child_pid.' in '.$pid.PHP_EOL);
-                        $this->verbose('Reading '.$child_pid. ' in '.$pid.PHP_EOL);
-                        $data = $this->read_and_delete_shmop($child_pid);
-                        if ($data) {
-                            $info = unserialize($data, [false]);
-                            // $this->verbose(print_r($info, true).PHP_EOL);
-                            // Merge fork info
-                            $this->merge_fork_info($info['fork_info']);
-                            // Merge coverage info
-                            $this->merge_line_coverage($info['line_coverage']);
-                            // Merge output
-                            $this->merge_output($info['output']);
-                        }
-                    }
-                }
-            }
-            else {
-                $this->reanimation_transcript[] = new ReanimationEntry($md5_reanimation_state, $this->current_file, $this->current_line, true);
-                $this->child_pids = [];
-                $this->parent_pid = $pid;
-                $this->is_child = true;
-                $this->verbose(strcolor(
-                    sprintf("(%d) %d->%d - Forking at %s [%s:%s] (depth=%d)...\n", $this->process_count, $this->parent_pid, getmypid(), $this->statement_id(), $this->current_file, $this->current_line, $this->off_branch)
-                    , "light green"));
-                $this->verbose(strcolor(
-                    sprintf($md5_current_state).PHP_EOL
-                    , "light green"));
-            }
+            $hard_limit_reached = false;
+            $child_pid = 123;
+            // if (isset($this->full_reanimation_transcript))
+            //     $this->verbose('Final reanimation log hash: '.md5(serialize($this->full_reanimation_transcript)).PHP_EOL);
+            $this->full_reanimation_transcript[] = new ReanimationEntry($md5_reanimation_state, $this->current_file, $this->current_line, false);
+            $this->verbose(sprintf('Adding reanimation task at %s:%d', $this->current_file, $this->current_line).PHP_EOL);
+            // $this->verbose(print_r($this->full_reanimation_transcript, true).PHP_EOL);
+            // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
+            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info);
             return array($pid, $child_pid);
         }
+    }
+
+    protected function coverage_overlaps($coverage_1, $coverage_2) {
+        if (!isset($coverage_1) || !isset($coverage_2)) {
+            $this->verbose(strcolor('Coverage 1 or 2 is null'.PHP_EOL, 'yellow'));
+            return false;
+        }
+        $this->verbose(strcolor(sprintf('Coverage 1 [%s]'.PHP_EOL, rtrim(implode(',', array_keys($coverage_1)), ',')), 'yellow'));
+        $this->verbose(strcolor(sprintf('Coverage 2 [%s]'.PHP_EOL, rtrim(implode(',', array_keys($coverage_2)), ',')), 'yellow'));
+        if (count($coverage_1) > count($coverage_2)) {
+            $this->verbose(strcolor(sprintf('Current coverage is longer than existing coverage %d, %d'.PHP_EOL, count($coverage_1), count($coverage_2)), 'yellow'));
+            return false;
+        }
+        $return_val = true;
+        foreach ($coverage_2 as $filename => $lines) {
+            if (!array_key_exists($filename, $coverage_1)) {
+                $this->verbose(strcolor(sprintf('File not covered %s'.PHP_EOL, $filename), 'yellow'));
+                $return_val = false;
+            }
+            elseif (count(array_diff($lines, $coverage_1[$filename])) > 0) {
+                $diff = array_diff($lines, $coverage_1[$filename]);
+                $this->verbose(strcolor(sprintf('Lines not covered in file %s [%s]'.PHP_EOL, $filename, rtrim(implode(',', $diff), ',')), 'yellow'));
+                $return_val = false;
+            }
+        }
+        if ($return_val) {
+            $this->verbose(strcolor(sprintf('Files and lines fully match'.PHP_EOL), 'yellow'));
+            $this->verbose(print_r($coverage_1).PHP_EOL);
+        }
+        return $return_val;
     }
 
     protected function store_checkpoint_context($ast, $node) {

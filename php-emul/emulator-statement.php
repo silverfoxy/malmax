@@ -40,11 +40,20 @@ trait EmulatorStatement
 	}
 	/**
 	 * Runs a single statement
-	 * If input is a statement, it will be run. If its an expression, it will be runned like an statement.
+	 * If input is a statement, it will be run. If its an expression, it will be run like an statement.
 	 * @param  Node $node 
 	 */
 	protected function run_statement($node)
 	{
+        if (strpos($this->current_file, 'NodeDatabaseContainer.php') !== false && $this->current_line === 45) {
+            $brk = 1;
+        }
+        if (strpos($this->current_file, 'NodeTableContainer.php') !== false) {
+            $brk = 1;
+        }
+        if (strpos($this->current_file, 'NavigationTree.php') !== false && $this->current_line === 301) {
+            $brk = 1;
+        }
 		if ($node instanceof Node\Stmt\Echo_)
 			foreach ($node->exprs as $expr)
 				$this->output($this->evaluate_expression($expr));
@@ -155,6 +164,7 @@ trait EmulatorStatement
                 if ($list instanceof SymbolicVariable) {
                     // set some vars
                     $symbolic_iterations = $this->symbolic_loop_iterations;
+                    $this->ignore_duplicates = true;
                     $this->loop_depth++;
                     if (isset($node->keyVar)) {
                         $this->variable_set($node->keyVar, new SymbolicVariable('Symbolic_Foreach_keyVar' . $this->current_line));
@@ -165,6 +175,7 @@ trait EmulatorStatement
                         if ($this->loop_condition())
                             break;
                     }
+                    $this->ignore_duplicates = false;
                     $symbolic = true;
                     $this->loop_depth--;
                 }
@@ -275,12 +286,12 @@ trait EmulatorStatement
 				$this->run_code($node->stmts);
 				$this->verbose("Ending a Try block without error (depth:{$this->try})...\n",3);
 			}
-			catch (Exception $e)
+			catch (\Exception $e)
 			{
 				$diff=count($this->trace)-$framecount;
 				if ($diff>0)
 				{
-					$this->verbose("Exception of type '".get_class($e)."' cautght, restoring context...\n",2);
+					$this->verbose("Exception of type '".get_class($e)."' caught, restoring context...\n",2);
 
 					for ($i=0;$i<$diff;++$i)
 					{
@@ -295,27 +306,29 @@ trait EmulatorStatement
 					$this->verbose("Exception of type '".get_class($e)."' caught, and no context restoration needed.\n",2);
 				$catch_found=false;
 				$this->try--; //no longer in the try
-				$this->verbose("Attempting to find matchin Catch block...\n",3);
+				$this->verbose("Attempting to find matching Catch block...\n",3);
 				foreach ($node->catches as $catch)
 				{
 					//each has type, the exception type, var, the exception variable, and stmts
-					$type=$this->name($catch->type);
-					if ($e instanceof EmulatedException and $this->is_a($e->object,$type)) //user-defined exception
-					{
-						$this->verbose("Catch block (user-defined exception type) found, executing...\n",4);
-						$this->variable_set($catch->var,$e->object);
-						$this->run_code($catch->stmts);
-						$catch_found=true;
-						break;
-					}
-					elseif ($e instanceof $type)
-					{
-						$this->verbose("Catch block found, executing...\n",4);
-						$this->variable_set($catch->var,$e);
-						$this->run_code($catch->stmts);
-						$catch_found=true;
-						break;
-					}
+                    foreach ($catch->types as $catch_type) {
+                        $type = $this->name($catch_type);
+                        if ($e instanceof EmulatedException and $this->is_a($e->object,$type)) //user-defined exception
+                        {
+                            $this->verbose("Catch block (user-defined exception type) found, executing...\n",4);
+                            $this->variable_set($catch->var,$e->object);
+                            $this->run_code($catch->stmts);
+                            $catch_found=true;
+                            break;
+                        }
+                        elseif ($e instanceof $type)
+                        {
+                            $this->verbose("Catch block found, executing...\n",4);
+                            $this->variable_set($catch->var,$e);
+                            $this->run_code($catch->stmts);
+                            $catch_found=true;
+                            break;
+                        }
+                    }
 				}
 				if ($catch_found)
 					$this->verbose("Catch block complete.\n",3);
@@ -427,9 +440,14 @@ trait EmulatorStatement
 				$this->error("Undefined constant {$fqname}");
 		}
 	}
-	function constant_set($name,$value)
+	function constant_set($name, $value, $use_current_namespace=true)
 	{
-		$index=$this->current_namespace($name);
+	    if ($use_current_namespace === true) {
+            $index=$this->current_namespace($name);
+        }
+	    else {
+	        $index = $name;
+        }
 		if (array_key_exists($index,$this->constants))
 			$this->notice("Constant {$index} already defined");
 		else

@@ -6,6 +6,6 @@ function class_implements_mock($emul,$class_or_object,$autoload=true)
 	if (!is_string($class))
 		$class=$emul->get_class($class_or_object);
 	if (class_exists($class) and $class!="EmulatorObject" ) return class_implements($class_or_object,$autoload);
-	$interfaces=$emul->classes[strtolower($class)]->interfaces;
+	$interfaces = $emul->get_class_object($class)->interfaces;
 	return array_combine($interfaces,$interfaces);
 }

@@ -582,9 +582,9 @@ class TaintAnalyzer extends PHPAnalyzer
 			{
 				foreach($this->ancestry($classname)  as $class)
 				{
-					if (!isset($this->classes[strtolower($class)]->static_taint))
-						$this->classes[strtolower($class)]->static_taint=[];
-					if (array_key_exists($property_name,$this->classes[strtolower($class)]->static_taint))
+					if (!isset($this->get_class_object($class)->static_taint))
+						$this->get_class_object($class)->static_taint = [];
+					if (array_key_exists($property_name,$this->get_class_object($class)->static_taint))
 					{
 						if (!$this->is_visible($node))
 						{
@@ -592,7 +592,7 @@ class TaintAnalyzer extends PHPAnalyzer
 							return $this->null_reference($key);
 						}	
 						$key=$property_name;	
-						return $this->classes[strtolower($class)]->static_taint; //only access its value #TODO: check for visibility
+						return $this->get_class_object($class)->static_taint; //only access its value #TODO: check for visibility
 					}
 				}
 				// $this->error("Access to undeclared static property: {$classname}::\${$property_name}");

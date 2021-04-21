@@ -2,8 +2,8 @@
 
 function setcookie_mock(PHPEmul\Emulator $emul, $name, $value)
 {
-    if (is_string($value)) {
-        $value_var = new \PhpParser\Node\Scalar\String_($value);
+    if (is_scalar($value)) {
+        $value_var = new \PhpParser\Node\Scalar\String_(strval($value));
     }
     elseif ($value === null) {
         $value_var = null;

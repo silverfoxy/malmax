@@ -12,8 +12,8 @@ class ReanimationEntry
 
     public function __construct(string $state_hash, string $current_file, int $current_line, bool $forked=true)
     {
-        $this->state_hash = $state_hash;
-        $this->current_file = $current_file;
+        $this->state_hash = utf8_encode($state_hash);
+        $this->current_file = utf8_encode($current_file);
         $this->current_line = $current_line;
         $this->forked = $forked;
     }

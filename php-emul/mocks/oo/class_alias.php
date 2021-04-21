@@ -8,6 +8,8 @@ function class_alias_mock($emul,$original,$alias,$autoload=true)
 		$emul->warning("Cannot declare class {$alias}, because the name is already in use");
 	elseif (!$emul->user_classlike_exists($original))
 		$emul->warning("Class '{$original}' not found");
-	else
-		$emul->classes[strtolower($alias)]=&$emul->classes[strtolower($original)];
+	else {
+	    $class_ref = &$emul->get_class_object($alias);
+	    $class_ref = &$emul->get_class_object($original);
+    }
 }

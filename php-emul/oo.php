@@ -69,15 +69,22 @@ class EmulatorObject
 		self::$emul->verbose("EmulatorObject('{$this->classname}')) __clone() id={$this->objectid}\n",8);
 		//TODO: call clone
 	}
+
 	public $destructor=null;
-	function __destruct()
-	{
-		self::$emul->verbose("EmulatorObject('{$this->classname}') __destruct() id={$this->objectid}\n",8);
-		self::$object_count--;
-		if (self::$emul->method_exists($this, "__destruct"))
-			self::$emul->run_method($this,"__destruct");
-		// TODO: call the internal destructor from OOEmulator instead of here
-	}
+	// Switching from PHP destructor calls to manuall almost shutdown_function like invokation of destructors
+    // with the goal of making destructor calls more predictable
+	// function __destruct()
+	// {
+	// 	self::$emul->verbose("EmulatorObject('{$this->classname}') __destruct() id={$this->objectid}\n",8);
+	// 	self::$object_count--;
+	// 	if (self::$emul->method_exists($this, "__destruct")) {
+	// 	    self::$emul->verbose("Running {$this->classname} destructor".PHP_EOL);
+	// 	    self::$emul->magic_function = '__destruct';
+    //         self::$emul->run_method($this, "__destruct");
+    //         self::$emul->magic_function = null;
+    //     }
+	// 	// TODO: call the internal destructor from OOEmulator instead of here
+	// }
 
 	function __toString()
 	{
@@ -87,6 +94,83 @@ class EmulatorObject
 		self::$emul->error("Object of class '{$this->classname}' could not be converted to string");
 	}
 
+	public function isVisible(string $property_name) {
+        if (array_key_exists($property_name, $this->properties)) {
+            return $this->property_visibilities[$property_name];
+        }
+        else {
+            $current_object = $this;
+            while (isset($current_object->parent)) {
+                $current_object = $current_object->parent;
+                // Parent is not wrapped in emulator object
+                // $has_property = $current_object->hasProperty($property_name);
+                if (property_exists($current_object, $property_name)) {
+                    return true;
+                }
+            }
+        }
+        // Neither current object nor any of its parent define the target property
+        return false;
+    }
+
+	public function hasProperty(string $property_name) {
+	    if (array_key_exists($property_name, $this->properties)) {
+            return true;
+        }
+	    else {
+	        $current_object = $this;
+	        while (isset($current_object->parent)) {
+	            $current_object = $current_object->parent;
+	            // Parent is not wrapped in emulator object
+	            // $has_property = $current_object->hasProperty($property_name);
+                if (property_exists($current_object, $property_name)) {
+                    return true;
+                }
+            }
+        }
+	    // Neither current object nor any of its parent define the target property
+        return false;
+    }
+
+    public function &getPropertiesArray(string $property_name) {
+        if (array_key_exists($property_name, $this->properties)) {
+            return $this->properties;
+        }
+        else {
+            $current_object = $this;
+            while (isset($current_object->parent)) {
+                $current_object = $current_object->parent;
+                $has_property = $current_object->hasProperty($property_name);
+                if ($has_property === true) {
+                    return $current_object->getPropertiesArray($property_name);
+                }
+            }
+        }
+        // Neither current object nor any of its parent define the target property
+        $this->notice('Undefined property '.$property_name);
+    }
+
+    public function setProperty(string $property_name, $value) {
+        if (array_key_exists($property_name, $this->properties)) {
+            $this->properties[$property_name] = $value;
+            return $value;
+        }
+        else {
+            $current_object = $this;
+            while (isset($current_object->parent)) {
+                $current_object = $current_object->parent;
+                $has_property = $current_object->hasProperty($property_name);
+                if ($has_property === true) {
+                    $current_object->properties[$property_name] = $value;
+                    return $value;
+                }
+            }
+        }
+        // Create and set the property if doesn't exist
+        $this->properties[$property_name] = $value;
+        return $value;
+    }
+
 }
 
 require_once "oo-methods.php";
@@ -95,10 +179,9 @@ class OOEmulator extends Emulator
 {
 	use OOEmulatorMethods;
 	use OOEmulator_spl_autoload;
-	function __construct($init_environ=null, $predefined_constants=null)
+	function __construct($init_environ=null, $httpverb=null, $predefined_constants=null, $reanimation_callback_object=null, $correlation_id=null)
 	{
-		parent::__construct($init_environ, $predefined_constants);
-
+		parent::__construct($init_environ, $httpverb, $predefined_constants, $reanimation_callback_object, $correlation_id);
 		$this->state['autoloaders']=
 		$this->state['classes']=
 		$this->state['mock_classes']=
@@ -148,115 +231,164 @@ class OOEmulator extends Emulator
 
 	protected function define_class($node)
 	{
-//has type, implements (array), stmts (Array), name, extends
-			//type=0 is normal, type=16 is abstract
-			
-			$classtype=null;
-			if (isset($node->type))
-				$classtype=$node->type;
-			$classname=$this->current_namespace($this->name($node->name));
-			$flags=strtolower(substr(explode("\\",get_class($node))[3],0,-1)); #intertface, class, trait
-			// $class_index=strtolower($this->namespace($classname));
-			$class_index=strtolower($classname);
-			$this->classes[$class_index]=new \stdClass;
-			$class=&$this->classes[$class_index];
+        //has type, implements (array), stmts (Array), name, extends
+        //type=0 is normal, type=16 is abstract
 
-			$extends=null;
-			if (isset($node->extends) and $node->extends)
-			{
-				$extends=$this->namespaced_name($node->extends);
-				if (!$this->class_exists($extends))	
-					$this->spl_autoload_call($extends);
-				if (!$this->class_exists($extends))
-					$this->error("Class '{$extends}' not found");
-				if ($this->user_class_exists($extends))
-					$extends=$this->classes[strtolower($extends)]->name;
-			}
-			$this->verbose("Extracting declaration of class '{$classname}'...\n",3);
-				
-			$class->name=$classname;
-			$class->interfaces=[];
-			$class->traits=[];
-			$class->consts=[];
-			$class->type=$flags;
-			$class->methods=[];
-			$class->properties=[];
-			$class->property_visibilities=[];
-			$class->static=[];
-			$class->parent=$extends;
-			$class->context=new EmulatorExecutionContext([ //'class'=>$classname, //this is static, shouldn't be set here
-				'self'=>$classname,'file'=>$this->current_file
-				,'namespace'=>$this->current_namespace,'active_namespaces'=>$this->current_active_namespaces]);
-			foreach ($node->stmts as $part)
-			{
-			    $current_self_backup = $this->current_self;
-			    $this->current_self = $classname;
-				if ($part instanceof Node\Stmt\Property)
-				{
-					$flags=$part->flags; //1= public, 2=protected, 4=private, 8= static
-					foreach ($part->props as $property)	
-					{
-						$propname=$this->name($property->name);
-						if ($property->default)
-							$val=$this->evaluate_expression($property->default);
-						else
-							$val=NULL;
-						if ($flags & EmulatorObject::Visibility_Private)
-							$visibility=EmulatorObject::Visibility_Private;
-						elseif ($flags & EmulatorObject::Visibility_Protected)
-							$visibility=EmulatorObject::Visibility_Protected;
-						else
-							$visibility=EmulatorObject::Visibility_Public;
+        $classtype=null;
+        if (isset($node->type))
+            $classtype=$node->type;
+        $classname=$this->current_namespace($this->name($node->name));
+        $flags=strtolower(substr(explode("\\",get_class($node))[3],0,-1)); #intertface, class, trait
+        // $class_index=strtolower($this->namespace($classname));
+        $class_index=strtolower($classname);
+        $this->classes[$class_index] = new \stdClass;
+        $class = &$this->get_class_object($class_index);
 
-						if ($flags & 8 ) //static
-						{
-							$class->static[$propname]=$val;
-							$class->static_visibility[$propname]=$visibility;
-						}
-						else
-							$class->properties[$propname]=$val;
-							$class->property_visibilities[$propname]=$visibility;
-					}
-				}
-				elseif ($part instanceof Node\Stmt\ClassMethod)
-				{
-					$flags=$part->flags;
-					if ($flags & EmulatorObject::Visibility_Private)
-						$visibility=EmulatorObject::Visibility_Private;
-					elseif ($flags & EmulatorObject::Visibility_Protected)
-						$visibility=EmulatorObject::Visibility_Protected;
-					else
-						$visibility=EmulatorObject::Visibility_Public;
-					$static=$flags&8;
-					$methodname=$this->name($part->name);
-					$class->methods[strtolower($methodname)]=(object)array('name'=>$methodname,"params"=>$part->params,"code"=>$part->stmts,
-							'type'=>$flags,'statics'=>[],'visibility'=>$visibility,'static'=>$static);
-				}
-				elseif ($part instanceof Node\Stmt\ClassConst)
-				{
-					foreach ($part->consts as $const)
-					{
-						$constname=$this->name($const->name);
-						$val=$this->evaluate_expression($const->value);
-						$class->consts[$constname]=$val;
-					}
-				}
-				elseif ($part instanceof Node\Stmt\TraitUse)
-				{
-					foreach ($part->traits as $trait)
-						$class->traits[]=$this->name($trait);
-				}
-				else
-					$this->error("Unknown class part for class '{$classname}'",$part);
+        $extends=null;
+        $this->verbose("Extracting declaration of class '{$classname}'...\n",3);
 
-			}
-			$interfaces=[];
-			if (isset($node->implements))
-			foreach ($node->implements as $interface)
-				$interfaces[]=$this->name($interface);
-			$class->classtype=$classtype;
-			// $class->file=$this->current_file;
-			$class->interfaces=$interfaces;
+        $class->name=$classname;
+        $class->interfaces=[];
+        $class->traits=[];
+        $class->consts=[];
+        $class->type=$flags;
+        $class->methods=[];
+        $class->properties=[];
+        $class->property_visibilities=[];
+        $class->static=[];
+
+        if (isset($node->extends) and $node->extends) {
+            $extends = $this->namespaced_name($node->extends);
+            if (!$this->class_exists($extends)) {
+                $this->spl_autoload_call($extends);
+            }
+            if (!$this->class_exists($extends)) {
+                $this->error("Class '{$extends}' not found");
+            }
+            if ($this->user_class_exists($extends)) {
+                $extends = $this->get_class_object($extends)->name;
+            }
+        }
+        $class->parent=$extends;
+            // Autoload class hierarchy (Parents of parent)
+            // Copy properties of parents to the current class
+        //     $parent = $extends;
+        //     do {
+        //         if (!$this->class_exists($parent)) {
+        //             $this->spl_autoload_call($parent);
+        //         }
+        //         if (!$this->class_exists($parent)) {
+        //             $this->error("Class '{$parent}' not found");
+        //         }
+        //         $parent = new \ReflectionClass($parent);
+        //         // Get properties of the parent and add them to the current class
+        //         $public_props = $parent->getProperties(\ReflectionProperty::IS_PUBLIC);
+        //         foreach ($public_props as $property) {
+        //             $class->properties[$property->getName()] = $property->getDefaultValue();
+        //             $class->property_visibilities[$property->getName()] = EmulatorObject::Visibility_Public;
+        //         }
+        //         $protected_props = $parent->getProperties(\ReflectionProperty::IS_PROTECTED);
+        //         foreach ($protected_props as $property) {
+        //             $class->properties[$property->getName()] = $property->getDefaultValue();
+        //             $class->property_visibilities[$property->getName()] = EmulatorObject::Visibility_Protected;
+        //         }
+        //         $private_props = $parent->getProperties(\ReflectionProperty::IS_PRIVATE);
+        //         foreach ($private_props as $property) {
+        //             $class->properties[$property->getName()] = $property->getDefaultValue();
+        //             $class->property_visibilities[$property->getName()] = EmulatorObject::Visibility_Private;
+        //         }
+        //
+        //     } while ($parent = $parent->getParentClass());
+        // }
+        if ($extends) {
+            foreach ($this->ancestry($class_index,true) as $parent_class) {
+                if (!$this->user_class_exists($parent_class)) {
+                    $this->spl_autoload_call($parent_class);
+                }
+                if ($this->user_class_exists($parent_class)) {
+                    $class_obj = $this->get_class_object($parent_class);
+                    foreach ($class_obj->properties as $property_name => $property) {
+                        $class->properties[$property_name] = $property;
+                        $class->property_visibilities[$property_name] = $class_obj->property_visibilities[$property_name];
+                    }
+                }
+            }
+        }
+
+        $class->context=new EmulatorExecutionContext([ //'class'=>$classname, //this is static, shouldn't be set here
+            'self'=>$classname,'file'=>$this->current_file
+            ,'namespace'=>$this->current_namespace,'active_namespaces'=>$this->current_active_namespaces]);
+        foreach ($node->stmts as $part)
+        {
+            $current_self_backup = $this->current_self;
+            $this->current_self = $classname;
+            if ($part instanceof Node\Stmt\Property)
+            {
+                $flags=$part->flags; //1= public, 2=protected, 4=private, 8= static
+                foreach ($part->props as $property)
+                {
+                    $propname=$this->name($property->name);
+                    if ($property->default)
+                        $val=$this->evaluate_expression($property->default);
+                    else
+                        $val=NULL;
+                    if ($flags & EmulatorObject::Visibility_Private)
+                        $visibility=EmulatorObject::Visibility_Private;
+                    elseif ($flags & EmulatorObject::Visibility_Protected)
+                        $visibility=EmulatorObject::Visibility_Protected;
+                    else
+                        $visibility=EmulatorObject::Visibility_Public;
+
+                    if ($flags & 8 ) //static
+                    {
+                        $class->static[$propname]=$val;
+                        $class->static_visibility[$propname]=$visibility;
+                    }
+                    else
+                        $class->properties[$propname]=$val;
+                        $class->property_visibilities[$propname]=$visibility;
+                }
+            }
+            elseif ($part instanceof Node\Stmt\ClassMethod)
+            {
+                $flags=$part->flags;
+                if ($flags & EmulatorObject::Visibility_Private)
+                    $visibility=EmulatorObject::Visibility_Private;
+                elseif ($flags & EmulatorObject::Visibility_Protected)
+                    $visibility=EmulatorObject::Visibility_Protected;
+                else
+                    $visibility=EmulatorObject::Visibility_Public;
+                $static=$flags&8;
+                $methodname=$this->name($part->name);
+                $class->methods[strtolower($methodname)]=(object)array('name'=>$methodname,"params"=>$part->params,"code"=>$part->stmts,
+                        'type'=>$flags,'statics'=>[],'visibility'=>$visibility,'static'=>$static);
+            }
+            elseif ($part instanceof Node\Stmt\ClassConst)
+            {
+                foreach ($part->consts as $const)
+                {
+                    $constname=$this->name($const->name);
+                    $val=$this->evaluate_expression($const->value);
+                    $class->consts[$constname]=$val;
+                }
+            }
+            elseif ($part instanceof Node\Stmt\TraitUse)
+            {
+                foreach ($part->traits as $trait)
+                    $class->traits[]=$this->name($trait);
+            }
+            elseif (!$part instanceof Node\Stmt\Nop) {
+                $this->error("Unknown class part for class '{$classname}'", $part);
+            }
+
+        }
+        $interfaces=[];
+        if (isset($node->implements))
+        foreach ($node->implements as $interface)
+            $interfaces[]=$this->name($interface);
+        $class->classtype=$classtype;
+        // $class->file=$this->current_file;
+        $class->interfaces=$interfaces;
         $this->current_self = $current_self_backup;
 	}
 	/**
@@ -268,33 +400,42 @@ class OOEmulator extends Emulator
 	protected function new_user_object($classname,array $args)
 	{
 		$this->verbose("Creating object of type {$classname}...".PHP_EOL,2);
-		$class_index=strtolower($classname);
-		
-		$obj=new EmulatorObject($this->classes[$class_index]->name,$this->classes[$class_index]->properties,$this->classes[$class_index]->property_visibilities);
+        $classname = strtolower($classname);
+		$class_obj = $this->get_class_object($classname);
+		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities);
 		$constructor=null;
+		$destructor = null;
 		
 		$t=explode("\\",$classname);
 		$old_style_constructor=end($t); //strip namespace
+
+        foreach ($this->ancestry($classname) as $class) //find the first available constructor
+        {
+            if ($this->user_method_exists($class,"__construct"))
+                $constructor=array($class,"__construct");
+            elseif ($this->user_method_exists($class,$old_style_constructor))
+                $constructor=array($class,$old_style_constructor);
+            if (isset($constructor)) break;
+        }
+
+        foreach ($this->ancestry($classname) as $class) //find the first available destructor
+        {
+            if ($this->user_method_exists($class,"__destruct"))
+                $destructor=array($class,"__destruct");
+            if (isset($destructor)) break;
+        }
 		
-		foreach ($this->ancestry($class_index) as $class) //find the first available constructor
+		foreach ($this->ancestry($classname,true) as $class)
 		{
-			if ($this->user_method_exists($class,"__construct"))
-				$constructor=array($class,"__construct");
-			elseif ($this->user_method_exists($class,$old_style_constructor))
-				$constructor=array($class,$old_style_constructor);
-			if (isset($constructor)) break;
-		}
-		
-		foreach ($this->ancestry($class_index,true) as $class)
-		{
-			if ($this->user_class_exists($class))
-			foreach ($this->classes[strtolower($class)]->properties as $property_name=>$property)
-			{
-				$obj->properties[$property_name]=$property;
-				$obj->property_visibilities[$property_name]=$this->classes[strtolower($class)]->property_visibilities[$property_name];
-				#FIXME: in reality, both classes are preserved by PHP, classname is part of variable name, but here we override:
-				$obj->property_class[$property_name]=$this->classes[strtolower($class)]->name;
-			}
+			if ($this->user_class_exists($class)) {
+			    $class_obj = $this->get_class_object($class);
+                foreach ($class_obj->properties as $property_name => $property) {
+                    $obj->properties[$property_name] = $property;
+                    $obj->property_visibilities[$property_name] = $class_obj->property_visibilities[$property_name];
+                    #FIXME: in reality, both classes are preserved by PHP, classname is part of variable name, but here we override:
+                    $obj->property_class[$property_name] = $class_obj->name;
+                }
+            }
 			else
 			{
 				if ($constructor) //has a constructor, do not auto-construct
@@ -314,6 +455,9 @@ class OOEmulator extends Emulator
 		}
 		if ($constructor)
 			$this->run_user_method($obj,$constructor[1],$args,$constructor[0]);
+		if ($destructor) {
+		    $this->destructors[] = $obj;
+        }
 		// $this->verbose("Creation done!".PHP_EOL,2); ///DEBUG
 		return $obj;
 	}
@@ -376,8 +520,9 @@ class OOEmulator extends Emulator
 		$this->expression_preprocess($node);		
 		if ($node instanceof Node\Expr\New_)
 		{
-
 			$classname=$this->namespaced_name($node->class);
+			if (str_contains($classname, 'ListDatabase'))
+			    $brk = 1;
 			return $this->new_object($classname,$node->args); //user function
 
 		}
@@ -392,7 +537,6 @@ class OOEmulator extends Emulator
 			else
 			{
 				$this->error("Call to a member function '{$method_name}()' on a non-object");
-				var_dump($object);
 				return null;
 			}
 			$this->verbose("Method call {$classname}::{$method_name}()".PHP_EOL,3);
@@ -449,8 +593,9 @@ class OOEmulator extends Emulator
             }
 			foreach ($this->ancestry($fq_classname) as $cls)
 			{
-				if (array_key_exists($constant, $this->classes[strtolower($cls)]->consts))
-					return $this->classes[strtolower($cls)]->consts[$constant];
+			    $class_obj = $this->get_class_object($cls);
+				if (array_key_exists($constant, $class_obj->consts))
+					return $class_obj->consts[$constant];
 			}
 			$this->error("Undefined class constant '{$constant}'",$node);
 		}
@@ -519,12 +664,14 @@ class OOEmulator extends Emulator
 	{
 		$t=explode("\\",$classname);
 		$end=array_pop($t);
-		if ($end==="self")
+		if ($end === "this")
+		    return $this->current_this;
+		elseif ($end === "self")
 			return $this->current_self;
-		elseif ($end==="static")
+		elseif ($end === "static")
 			return $this->current_class;
-		elseif ($end==="parent")
-			return $this->classes[strtolower($this->current_self)]->parent;
+		elseif ($end === "parent")
+			return $this->get_class_object($this->current_self)->parent;
 		return $classname;
 	}
 	/**
@@ -533,22 +680,26 @@ class OOEmulator extends Emulator
 	 * @param  string $classname 
 	 * @return array            
 	 */
-	public function ancestry($classname,$top_to_bottom=false)
+	public function ancestry($classname, $top_to_bottom=false)
 	{
-		$classname=$this->real_class($classname);
+        // Remove starting "/"
+		$classname = $this->real_class($classname);
 		$fq_classname = $this->namespaced_name($classname);
-		if (isset($this->classes[strtolower($fq_classname)])) {
-		    $classname = $fq_classname;
+		$fq_class_obj = $this->get_class_object($fq_classname);
+		$class_obj = $this->get_class_object($classname);
+		if (isset($fq_class_obj)) {
+            $class_obj = $fq_class_obj;
         }
-		elseif (!isset($this->classes[strtolower($classname)])) {
+		elseif (!isset($class_obj)) {
 		    return [];
         }
-		$res=[$classname];
-		while (isset($this->classes[strtolower($classname)]) 
-			and $this->classes[strtolower($classname)]->parent)
+		$res = [$classname];
+		while (isset($class_obj)
+			and $class_obj->parent)
 		{
-			$classname=$this->classes[strtolower($classname)]->parent;
-			$res[]=$classname;
+			$classname = $class_obj->parent;
+			$res[] = $classname;
+			$class_obj = $this->get_class_object($classname);
 		}
 		if ($top_to_bottom) $res=array_reverse($res);
 		return $res;
@@ -572,7 +723,7 @@ class OOEmulator extends Emulator
 				$method=end($this->trace)->function;
 
 				//TODO
-				$statics=&$this->classes[strtolower($class)]->methods[strtolower($method)]->statics;// &$this->functions[$this->current_function]->statics;
+				$statics = &$this->get_class_object($class)->methods[strtolower($method)]->statics;// &$this->functions[$this->current_function]->statics;
 				foreach ($node->vars as $var)
 				{
 				    // $name=$this->name($var->name)
@@ -616,7 +767,7 @@ class OOEmulator extends Emulator
 			if ($var instanceof EmulatorObject)
 			{
 				$property_name=$this->name($node->name);
-				if (!array_key_exists($property_name, $var->properties))
+				if (!$var->hasProperty($property_name))
 				{
 					if (!$create)
 					{
@@ -625,7 +776,7 @@ class OOEmulator extends Emulator
 					}
 					else //dynamic properties, on all classes 
 					{
-						$var->properties[$property_name]=null;
+					    $var->setProperty($property_name, null);
 					}
 				}
 				if (!$this->is_visible($node))
@@ -634,7 +785,7 @@ class OOEmulator extends Emulator
 					return $this->null_reference($key);
 				}					
 				$key=$property_name;
-				return $var->properties; //reference its value only!
+                return $var->getPropertiesArray($property_name); //reference its value only!
 			}
 			elseif(is_object($var)) //native object
 			{
@@ -659,17 +810,17 @@ class OOEmulator extends Emulator
 		}
 		elseif ($node instanceof Node\Expr\StaticPropertyFetch)
 		{
-			$classname=$this->name($node->class);
+			$classname = $this->name($node->class);
 			if ($classname instanceof EmulatorObject) //support for $object::static_method
 				$classname=$classname->classname;
-			$classname=$this->real_class($classname);
-			$property_name=$this->name($node->name);
+			$classname = $this->real_class($classname);
+			$property_name = $this->name($node->name);
 			$fq_classname = stripos($classname, $this->current_namespace) !== false ? $classname : $this->namespaced_name($classname);
 			if ($this->ancestry($fq_classname))
 			{
 				foreach($this->ancestry($fq_classname) as $class)
 				{
-					if (array_key_exists($property_name,$this->classes[strtolower($class)]->static))
+					if (array_key_exists($property_name, $this->get_class_object($class)->static))
 					{
 						if (!$this->is_visible($node) && $this->current_class !== $class) // 2nd condition handles reference to self object inside closures
 						{
@@ -677,7 +828,7 @@ class OOEmulator extends Emulator
 							return $this->null_reference($key);
 						}	
 						$key=$property_name;	
-						return $this->classes[strtolower($class)]->static; //only access its value #TODO: check for visibility
+						return $this->get_class_object($class)->static; //only access its value #TODO: check for visibility
 					}
 				}
 				$this->error("Access to undeclared static property: {$classname}::\${$property_name}");
@@ -821,6 +972,11 @@ class OOEmulator extends Emulator
 						or ($visibility==EmulatorObject::Visibility_Private and strtolower($this->current_self)==strtolower($class) ) 
 							);
 				}
+				elseif ($var->hasProperty($property_name)) {
+				    if ($var->isVisible($property_name)) {
+				        return true;
+                    }
+                }
 			}
 			elseif(is_object($var)) //native object
 			{
@@ -844,9 +1000,10 @@ class OOEmulator extends Emulator
                 {
                     foreach($this->ancestry($classname)  as $class)
                     {
-                        if (array_key_exists($property_name,$this->classes[strtolower($class)]->static))
+                        $class_obj = $this->get_class_object($class);
+                        if (array_key_exists($property_name,$class_obj->static))
                         {
-                            $visibility=$this->classes[strtolower($class)]->static_visibility[$property_name];
+                            $visibility = $class_obj->static_visibility[$property_name];
                             return ($visibility==EmulatorObject::Visibility_Public
                                 or ($visibility==EmulatorObject::Visibility_Protected and $this->is_a($classname, $class,true)  )
                                 or ($visibility==EmulatorObject::Visibility_Private and strtolower($classname)==strtolower($class) )
@@ -872,7 +1029,11 @@ class OOEmulator extends Emulator
 	{
 		if ($node instanceof Node\Expr\PropertyFetch)// and !parent::variable_isset($node))
 		{
-
+		    if ($magic === 'get' || $magic === 'set') { // __get and __set are only used when the property is protected/private
+                if ($this->is_visible($node)) { // Do not invoke __get or __set on public class properties
+                    return false;
+                }
+            }
 			$base=&$this->symbol_table($node->var,$key2,false);
 			if ($key2===null)
 				return false;
@@ -912,8 +1073,10 @@ class OOEmulator extends Emulator
 	}
 	function &variable_reference($node,&$success=null)
 	{
-		if ($this->handle_magic($node,"get",$r)) return $r;
-		else return parent::variable_reference($node,$success);
+		if ($this->handle_magic($node,"get",$r))
+		    return $r;
+		else
+		    return parent::variable_reference($node,$success);
 	}
 	function variable_get($node)
 	{

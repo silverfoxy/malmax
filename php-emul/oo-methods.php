@@ -11,7 +11,8 @@ trait OOEmulatorMethodExistence {
 	 */
 	public function user_classlike_exists($classname,$type=null)
 	{
-		return isset($this->classes[strtolower($classname)]) and ($type===null or $this->classes[strtolower($classname)]->type==$type);
+	    $class_obj = $this->get_class_object($classname);
+		return isset($class_obj) and ($type===null or $class_obj->type==$type);
 	}
 	public function user_class_exists($classname)
 	{
@@ -47,9 +48,10 @@ trait OOEmulatorMethodExistence {
 	 */
 	public function user_property_exists($class,$property)
 	{
-		if (!isset($this->classes[strtolower($class)])) return false;
+	    $class_object = $this->get_class_object($class);
+		if (!isset($class_object)) return false;
 		$this->stash_ob();
-		return isset($this->classes[strtolower($class)]->properties[$property]); //this is case sensitive
+		return isset($class_object->properties[$property]); //this is case sensitive
 	}
 
 	/**
@@ -118,7 +120,7 @@ trait OOEmulatorMethodExistence {
 	{
 		if (!$this->user_class_exists($classname)) return false;
 		#TODO: separate static/instance methods?
-		return isset($this->classes[strtolower($classname)]->methods[strtolower($methodname)]);
+		return isset($this->get_class_object($classname)->methods[strtolower($methodname)]);
 	}
 
 
@@ -128,10 +130,11 @@ trait OOEmulatorMethodExistence {
 		if (!is_object($obj)) return null;
 		if ($obj instanceof EmulatorObject)
 		{
-			$class=$obj->classname;
-			if (!isset($this->classes[strtolower($class)]))
+			$classname=$obj->classname;
+            $class_object = $this->get_class_object($classname);
+			if (!isset($class_object))
 				return null;
-			return $this->classes[strtolower($class)]->parent;
+			return $class_object->parent;
 		}
 		else
 			return get_parent_class($obj);
@@ -150,6 +153,19 @@ trait OOEmulatorMethodExistence {
 			$class=get_class($obj);
 		return $class;
 	}
+
+    /**
+     * Get the class object if already loaded
+     * Also removes the starting "\" for namespaced classnames (\namespace\classname).
+     * @param $classname
+     * @return mixed
+     */
+	public function &get_class_object($classname) {
+        // Remove starting "\"
+        $classname = strtolower($classname);
+        $classname = substr($classname, 0, 1) === '\\' ? substr($classname, 1, strlen($classname) - 1) : $classname;
+        return $this->classes[$classname];
+    }
 	/**
 	 * Whether or not an object is an instance of a user defined class
 	 * @param  mixed  $obj 
@@ -213,9 +229,9 @@ trait OOEmulatorMethods {
 		if (!$this->class_exists($class_name))	
 			$this->spl_autoload_call($class_name);
 		if (array_key_exists(strtolower($class_name), $this->classes))
-			return $this->run_user_static_method($original_class_name,$method_name,$args);
+			return $this->run_user_static_method($class_name,$method_name,$args);
 		elseif (class_exists($class_name))
-			return $this->run_core_static_method($original_class_name,$method_name,$args);
+			return $this->run_core_static_method($class_name,$method_name,$args);
 			// return call_user_func_array($class_name."::".$method_name, $args);
 		else
 		{
@@ -260,8 +276,8 @@ trait OOEmulatorMethods {
 						$word="ancestor";
 					$this->verbose("Found {$word} method {$class}::{$method}()...".PHP_EOL,3);
 					$trace_args=array("type"=>"::","function"=>$method,"class"=>$class);
-					$class_index=&$this->classes[strtolower($class)];
-					$context=clone $class_index->context;
+					$class_index = &$this->get_class_object($class);
+					$context = clone $class_index->context;
 					$context->method=$method;
 					$context->line=$this->current_line;
 					if (!$indirect) //do not update on indirects http://php.net/manual/en/language.oop5.late-static-bindings.php
@@ -300,13 +316,18 @@ trait OOEmulatorMethods {
 						break;
 					}
 				}
-
 			}
 		}
 		if (!$flag) //method not found
 		{
-			$this->error("Call to undefined method {$class_name}::{$method_name}()");
-			$res=null;
+            if (class_exists($class_name)) //core class
+            {
+                $res = $this->run_core_static_method($class_name, $method_name, $args);
+            }
+            else {
+                $this->error("Call to undefined method {$class_name}::{$method_name}()");
+                $res=null;
+            }
 		}
 		if ($this->return)
 			$this->return=false;	
@@ -417,7 +438,6 @@ trait OOEmulatorMethods {
 		}
 		if ($class_name===null)
 			$class_name=$object->classname;
-		
 		$res=$this->run_user_static_method($class_name,$method_name,$args,$object);
 		return $res;
 	}

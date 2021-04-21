@@ -663,7 +663,6 @@ trait EmulatorExpression {
 			$names=[null,'include','include_once','require','require_once'];
 			$name=$names[$type];
 			$file=$this->evaluate_expression($node->expr, $is_symbolic);
-
 			$realfile = $this->get_include_file_path($file);
 
 			// $realfile =realpath(dirname($this->current_file)."/".$file); //first check the directory of the file using include (as per php)

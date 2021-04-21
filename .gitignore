@@ -5,3 +5,5 @@ index_logs.txt
 output.txt
 stats.txt
 php-emul/vendor
+
+*.DS_Store
