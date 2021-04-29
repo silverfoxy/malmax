@@ -1287,11 +1287,11 @@ class Emulator
                 }
                 $this->run_statement($node);
             }
-            catch (Exception $e)
+            catch (\Exception $e)
             {
                 $this->throw_exception($e);
             }
-            catch (Error $e) //php 7. fortunately, even though Error is not a class, this will not err in PHP 5
+            catch (\Error $e) //php 7. fortunately, even though Error is not a class, this will not err in PHP 5
             {
                 // throw $e;
                 // $this->throw_exception($e); //should be throw_error, throw_exception relies on type

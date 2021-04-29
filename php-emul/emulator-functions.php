@@ -148,12 +148,6 @@ trait EmulatorFunctions
 	protected function run_function($function,$args,EmulatorExecutionContext $context,$trace_args=array(),$vars=[])
     {
 		$name=$trace_args['function'];
-        if ($name === '_buildPathPart') {
-            $brk = 1;
-        }
-        if ($name === 'getChild') {
-            $brk = 1;
-        }
 		if (isset($trace_args['class']))
 			$name=$trace_args['class'].$trace_args['type'].$name;
 		$processed_args=$this->user_function_prologue($name,$function->params,$args);
@@ -181,7 +175,7 @@ trait EmulatorFunctions
             $this->current_closure_scope = isset($function->scope) ? $function->scope : null;
             $this->current_closure_boundobject = isset($function->bound_object) ? $function->bound_object : null;
         }
-		$res=$this->run_code($function->code);
+		$res=$this->run_code($function->code); // Find file NodeDatabaseChildContainer
         if ($function instanceof EmulatorClosure) {
             $this->current_closure_scope = null;
             $this->current_closure_boundobject = null;

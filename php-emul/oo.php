@@ -497,7 +497,7 @@ class OOEmulator extends Emulator
 	 * @param  array  $args      
 	 * @return object            
 	 */
-	protected function new_object($classname,array $args)
+	public function new_object($classname, array $args)
 	{
 		$classname=$this->real_class($classname); //apparently 'new self' is ok!
 		// if (!$this->class_exists($classname))
@@ -521,8 +521,6 @@ class OOEmulator extends Emulator
 		if ($node instanceof Node\Expr\New_)
 		{
 			$classname=$this->namespaced_name($node->class);
-			if (str_contains($classname, 'ListDatabase'))
-			    $brk = 1;
 			return $this->new_object($classname,$node->args); //user function
 
 		}
@@ -894,7 +892,7 @@ class OOEmulator extends Emulator
 	public function is_a($object_or_string,$class_name,$allow_string=false)
 	{
 		if (is_object($object_or_string) and !($object_or_string instanceof EmulatorObject))
-			return is_a($object_or_string,$class_name);
+			return is_a($object_or_string,$class_name) or is_a($object_or_string, $class_name.'_mock');
 		if (is_string($object_or_string) and $allow_string!=true) return null;
 		if (is_string($object_or_string) and !$this->user_class_exists($object_or_string))
 			return is_a($object_or_string,$class_name,true);
@@ -969,7 +967,7 @@ class OOEmulator extends Emulator
 					// var_dump("ancestry:",$this->ancestry($class));
 					return ($visibility==EmulatorObject::Visibility_Public
 						or ($visibility==EmulatorObject::Visibility_Protected and ($this->is_a((string)$this->current_self, $class,true) or $this->is_a( $class,(string)$this->current_self,true)) )
-						or ($visibility==EmulatorObject::Visibility_Private and strtolower($this->current_self)==strtolower($class) ) 
+						or ($visibility==EmulatorObject::Visibility_Private and strtolower($this->current_this->classname ?? $this->current_class)==strtolower($class) )
 							);
 				}
 				elseif ($var->hasProperty($property_name)) {

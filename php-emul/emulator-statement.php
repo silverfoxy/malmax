@@ -45,15 +45,6 @@ trait EmulatorStatement
 	 */
 	protected function run_statement($node)
 	{
-        if (strpos($this->current_file, 'NodeDatabaseContainer.php') !== false && $this->current_line === 45) {
-            $brk = 1;
-        }
-        if (strpos($this->current_file, 'NodeTableContainer.php') !== false) {
-            $brk = 1;
-        }
-        if (strpos($this->current_file, 'NavigationTree.php') !== false && $this->current_line === 301) {
-            $brk = 1;
-        }
 		if ($node instanceof Node\Stmt\Echo_)
 			foreach ($node->exprs as $expr)
 				$this->output($this->evaluate_expression($expr));

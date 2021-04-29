@@ -71,7 +71,7 @@ trait OOEmulatorMethodExistence {
 				return property_exists($class_or_obj, $property);
 		}
 		$class=$class_or_obj;	
-		if (!$this->user_class_exists($class)) return property_exists($class,$methodname); //internal php class
+		if (!$this->user_class_exists($class)) return property_exists($class,$property); //internal php class
 		foreach ($this->ancestry($class) as $ancestor)
 			if ($this->user_property_exists($ancestor,$property)) return true;
 		return false;
@@ -252,6 +252,12 @@ trait OOEmulatorMethods {
 		$class_name=$this->real_class($original_class_name);
 		$indirect=($class_name!==$original_class_name); //whether its class::x() vs self::x() or the like
 		$this->verbose("Running {$class_name}::{$method_name}()...".PHP_EOL,2);
+        // Check for symbolic methods
+        $class_function_name = $class_name.'/'.$method_name;
+        if (in_array($class_function_name, $this->symbolic_methods)) {
+            // Method is symbolic, return a symbol
+            return new SymbolicVariable($class_function_name);
+        }
 		$flag=false;
 		foreach ([$method_name,'__call',"__callStatic"] as $method) //magic methods
 		{

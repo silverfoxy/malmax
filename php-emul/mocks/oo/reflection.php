@@ -44,6 +44,25 @@ class ReflectionMethod_mock extends BaseReflection_mock
 		$this->method=$method;
 	}
 
+    /**
+     * @return array Array of ReflectionParameter(s)
+     */
+	function _getParameters() {
+	    $params = [];
+	    foreach ($this->method()->params as $param) {
+	        $params[] = new ReflectionParameter_mock($this->method, $param);
+        }
+	    return $params;
+    }
+
+    /**
+     * @param Object|null $object
+     * @param array $args
+     */
+    function _invokeArgs($object, $args) {
+        $dbug = 1;
+    }
+
 	function _getName()
 	{
 		return $this->method()->name;
@@ -68,27 +87,46 @@ class ReflectionProperty_mock extends BaseReflection_mock
 		$this->prop=$name;
 	}
 }
+class ReflectionParameter_mock extends BaseReflection_mock
+{
+    public $name = '';
+
+}
 class ReflectionClass_mock extends BaseReflection_mock
 {
 	protected $class="";
+
 	function &myclass()
 	{
 		return $this->emul()->get_class_object($this->class);
-
 	}
+
 	function __construct($arg)
 	{
-		if (is_object($arg))
-			if ($arg instanceof EmulatorObject)
-				$this->class=$arg->classname;
-			else
-				$this->reflection=new ReflectionClass($arg);	
-		else
-			if ($this->emul()->user_class_exists($arg))
-				$this->class=$arg;
-			else
-				$this->reflection=new ReflectionClass($arg);	
+		if (is_object($arg)) {
+            if ($arg instanceof EmulatorObject) {
+                $this->class = $arg->classname;
+            }
+            else {
+                $this->reflection = new ReflectionClass($arg);
+            }
+        }
+		else {
+            if (!$this->emul()->class_exists($arg)) {
+                $this->emul()->spl_autoload_call($arg);
+            }
+            if (!$this->emul()->class_exists($arg)) {
+                $this->emul()->error("Class '{$arg}' not found");
+            }
+            if ($this->emul()->user_class_exists($arg)) {
+                $this->class = $arg;
+            }
+            else {
+                $this->reflection = new ReflectionClass($arg);
+            }
+        }
 	}
+
 	function _getMethods($filter=null)
 	{
 		$result=[];
@@ -111,6 +149,7 @@ class ReflectionClass_mock extends BaseReflection_mock
 		}
 		return $result;
 	}
+
 	function _getProperty($name)
 	{
 		if (!array_key_exists($name,$this->myclass()->properties))
@@ -118,10 +157,32 @@ class ReflectionClass_mock extends BaseReflection_mock
 		return new ReflectionProperty_mock($this->class,$name);
 
 	}
+
 	function _getInterfaceNames()
 	{
 		return $this->myclass()->interfaces;
 	}
 
+    function _getConstructor()
+    {
+        // Check current class
+        if (array_key_exists('__construct', $this->myclass()->methods)) {
+            return new ReflectionMethod_mock($this->class, '__construct');
+        }
+        // Check ancestry
+        foreach ($this->emul()->ancestry($this->class) as $ancestor)
+            if ($this->emul()->user_method_exists($ancestor, '__construct')) {
+                return new ReflectionMethod_mock($ancestor, '__construct');
+            }
+        // Not found, return Null
+        return null;
+    }
 
+    /**
+     * Creates a new object instace using the provided arguments by calling the constructor
+     * @param Array $args
+     */
+    function _newInstanceArgs($args) {
+        return $this->emul()->new_object($this->class, $args);
+    }
 }
