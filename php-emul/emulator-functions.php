@@ -371,9 +371,6 @@ trait EmulatorFunctions
 	{
 	    // If its a Symbolic function, return a Symbol.
         // If its Symbolic if the args are symbolic, wait for args to be resolved.
-        if ($name === 'realQuery') {
-            $brk = 1;
-        }
         if (isset($this->symbolic_functions) && in_array($name, $this->symbolic_functions)) {
             return new SymbolicVariable($name);
         }

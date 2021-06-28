@@ -843,6 +843,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 				// Check if any of the branches are concrete
                 $have_symbolic_conditions = false;
                 $is_symbolic = false;
+                $this->current_line = $node->getLine();
                 $this->lineLogger->logNodeCoverage($node->cond, $this->current_file);
 				$main_branch_condition = $this->evaluate_expression($node->cond, $is_symbolic);
 				// $this->verbose('main branch condition: '.print_r($main_branch_condition, true).PHP_EOL);
@@ -855,7 +856,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 }
                 elseif ($main_branch_condition instanceof SymbolicVariable) {
                     // $this->verbose('should be forking'.PHP_EOL);
-                    $forked_process_info = $this->fork_execution();
+                    $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $node->cond));
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {
@@ -874,6 +875,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 if (!$covered_one_branch && is_array($node->elseifs) && sizeof($node->elseifs) > 0) {
                     // Main branch is not satisfied, now checking the elseif branches
                     foreach ($node->elseifs as $elseif) {
+                        $this->current_line = $node->getLine();
                         $this->lineLogger->logNodeCoverage($elseif->cond, $this->current_file);
                         $branch_condition = $this->evaluate_expression($elseif->cond);
                         $branch_conditions[$this->statement_id($elseif)] = $branch_condition;
@@ -886,7 +888,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         }
                         elseif ($branch_condition instanceof SymbolicVariable) {
                             // Elseif condition is symbolic
-                            $forked_process_info = $this->fork_execution();
+                            $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node->elseifs, $elseif));
                             if ($forked_process_info !== false) {
                                 list($pid, $child_pid) = $forked_process_info;
                                 if ($child_pid === 0) {
@@ -1014,7 +1016,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                 }
                             }
                             elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                                $forked_process_info = $this->fork_execution(true);
+                                $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case), true);
                                 if ($forked_process_info !== false) {
                                     list($pid, $child_pid) = $forked_process_info;
                                     if ($child_pid === 0) {
@@ -1091,7 +1093,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                     }
                                 }
                                 elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                                    $forked_process_info = $this->fork_execution();
+                                    $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case));
                                     if ($forked_process_info !== false) {
                                         list($pid, $child_pid) = $forked_process_info;
                                         if ($child_pid === 0) {
@@ -1212,7 +1214,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             }
                         }
                         elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                            $forked_process_info = $this->fork_execution();
+                            $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case));
                             if ($forked_process_info !== false) {
                                 list($pid, $child_pid) = $forked_process_info;
                                 if ($child_pid === 0) {
@@ -1401,5 +1403,27 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
             }
         }
 	    return true;
+    }
+
+    protected function get_next_branch_lines($main_conditional_node, $current_branch_node): array
+    {
+        // As our first draft implementation, we return the whole parent node coverage (Main conditional and all of its branches)
+        $filename = $this->current_file;
+        $lines = [];
+        if (is_array($main_conditional_node)) {
+            while (count($main_conditional_node) > 0) {
+                // Assumption is that next_branch_lines are within the same file (ie not following function calls etc.)
+                $lines = array_merge($lines, $this->get_next_branch_lines(array_pop($main_conditional_node), [])[$filename]);
+            }
+        }
+        elseif (isset($main_conditional_node->stmts)) {
+            foreach ($main_conditional_node->stmts as $stmt) {
+                $lines = array_merge($lines, $this->get_next_branch_lines($stmt, [])[$filename]);
+            }
+        }
+        else {
+            $lines = range($main_conditional_node->getStartLine(), $main_conditional_node->getEndLine());
+        }
+        return [$filename => $lines];
     }
 }

@@ -709,7 +709,7 @@ trait EmulatorExpression {
                     }
                 }
                 elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                    $forked_process_info = $this->fork_execution();
+                    $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $node->else));
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {

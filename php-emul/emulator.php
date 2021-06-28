@@ -557,6 +557,18 @@ class Emulator
                     $v[$key] = new SymbolicVariable();
                 }
             }
+            else if ($k === '_POST') {
+                foreach (array_keys($v) as $key) {
+                    $v[$key] = new SymbolicVariable();
+                }
+            }
+            else if ($k === '_REQUEST') {
+                foreach (array_keys($v) as $key) {
+                    if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_SESSION']) || array_key_exists($key, $init_environ['_COOKIE'])) {
+                        $v[$key] = new SymbolicVariable();
+                    }
+                }
+            }
             $this->variables[$k] = $v;
         }
         $this->variables['GLOBALS']=&$this->variables; //as done by PHP itself
@@ -1558,7 +1570,7 @@ class Emulator
         return $vars;
     }
 
-    protected function fork_execution(bool $always_fork = false) {
+    protected function fork_execution($new_branch_coverage, bool $always_fork = false) {
         // $this->verbose('forking: '.($this->reanimate ? 'true' : 'false').PHP_EOL);
         // $this->verbose('reanimation transcript: '.sizeof($this->reanimation_transcript).PHP_EOL);
         // file_put_contents('/home/ubuntu/fork_lines.txt', sprintf('%s:%d:%d'.PHP_EOL, $this->current_file, $this->current_line, getmypid()), FILE_APPEND);
@@ -1642,7 +1654,7 @@ class Emulator
             $this->verbose(sprintf('Adding reanimation task at %s:%d', $this->current_file, $this->current_line).PHP_EOL);
             // $this->verbose(print_r($this->full_reanimation_transcript, true).PHP_EOL);
             // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
-            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id);
+            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id, $new_branch_coverage);
             return array($pid, $child_pid);
         }
     }
