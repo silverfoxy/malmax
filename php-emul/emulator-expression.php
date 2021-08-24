@@ -113,6 +113,7 @@ trait EmulatorExpression {
 			return $ret;
 			
 		}
+
 		elseif ($node instanceof Node\Expr\AssignRef)
 		{
 		    $expr_value = $this->evaluate_expression($node->expr);
@@ -129,6 +130,7 @@ trait EmulatorExpression {
 		        $this->variable_set($node->var, $expr_value);
             }
 		}
+
 		elseif ($node instanceof Node\Expr\Assign)
 		{
 			if ($node->var instanceof Node\Expr\List_) //list(x,y)=f()
@@ -223,7 +225,11 @@ trait EmulatorExpression {
             if ($expr instanceof SymbolicVariable) {
                 return new SymbolicVariable();
             }
-            return !$this->evaluate_expression($expr, $is_symbolic);
+            if ($expr instanceof \stdClass) {
+                return !$expr;
+            } else {
+                return !$this->evaluate_expression($expr, $is_symbolic);            }
+
         }
 		elseif ($node instanceof Node\Expr\BitwiseNot) {
             $expr = $this->evaluate_expression($node->expr);
@@ -755,7 +761,8 @@ trait EmulatorExpression {
 		elseif (!is_object($node))
             return $node;
 		else
-			$this->error("Unknown expression node: ",$node);
+            $this->error("Unknown expression node: ",$node);
+
 		return null;
 	}
 }

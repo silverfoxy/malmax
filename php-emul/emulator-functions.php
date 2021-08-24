@@ -253,7 +253,7 @@ trait EmulatorFunctions
 				$parameter_reflection=null;
 			if ($arg instanceof Node)
 			{
-				if ($parameter_reflection!==null and $parameter_reflection->isPassedByReference()) //byref 
+				if ($parameter_reflection!==null and $parameter_reflection->isPassedByReference()) //byref
 				{
 					if (!$this->variable_isset($arg->value))//should create the variable, like byref return vars
 						$this->variable_set($arg->value);
@@ -263,7 +263,7 @@ trait EmulatorFunctions
 				}
 				else
 				{
-				 	$val=$this->evaluate_expression($arg->value, $is_symbolic);
+                    $val=$this->evaluate_expression($arg->value, $is_symbolic);
 					#auto-wrap. note: ReflectionParameter::isCallable always returns false , either in PHP 5.4 or 7.0.2
 					#	it probably only works for user-classes
 				 	if ( function_exists("callback_requiring_functions") and isset(callback_requiring_functions()[strtolower($name)]) 
@@ -307,7 +307,7 @@ trait EmulatorFunctions
         elseif (ob_get_level()==0) {
 		    ob_start();
         }
-		set_error_handler(array($this, 'userfunc_err_handler'), E_WARNING|E_ALL);
+		set_error_handler(array($this, 'userfunc_err_handler'), E_ERROR|~E_DEPRECATED);
 		$this->arg_values = $argValues;
 		$ret=call_user_func_array($name,$argValues); //core function
         // set_error_handler($current_error_handler);
@@ -371,6 +371,7 @@ trait EmulatorFunctions
 	{
 	    // If its a Symbolic function, return a Symbol.
         // If its Symbolic if the args are symbolic, wait for args to be resolved.
+
         if (isset($this->symbolic_functions) && in_array($name, $this->symbolic_functions)) {
             return new SymbolicVariable($name);
         }
@@ -384,7 +385,10 @@ trait EmulatorFunctions
 			return $ret;
 		}
 		elseif (function_exists($name)) //global core function
-			$ret=$this->run_core_function($name,$args);
+        {
+            $ret=$this->run_core_function($name,$args);
+        }
+
 		else
 		{
 			$fqname=$this->namespaced_name($name);
