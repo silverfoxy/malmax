@@ -887,8 +887,13 @@ class Emulator
             }
             return $this->symbol_table($node_name,$key,$create);
         }
-        elseif ($node instanceof Node\Expr\ArrayItem) {
-            return $this->symbol_table($node->value->name, $key, $create);
+	elseif ($node instanceof Node\Expr\ArrayItem) {
+		// rasoul
+		if (! ($node->value instanceof Node\Expr\PropertyFetch || $node->value instanceof Node\Expr\StaticPropertyFetch)){
+			return $this->symbol_table($node->value->name, $key, $create);
+		} else {
+		        return $this->symbol_table($node->value, $key, $create);
+		}	
         }
         elseif ($node instanceof Node\Expr)
         {
