@@ -336,11 +336,18 @@ trait EmulatorFunctions
 	{
 		$argValues=$this->core_function_prologue($name,$args); #this has to be before the trace line,
         // If any of the function arguments is Symbolic then return symbol
-        foreach ($argValues as $arg) {
-            if ($arg instanceof SymbolicVariable) {
-                return new SymbolicVariable($name);
+
+        // assigning variable_value is only correct for define
+        // not correct in general!
+        if ( $name != "define") {
+            foreach ($argValues as $arg) {
+                if ($arg instanceof SymbolicVariable) {
+
+                    return new SymbolicVariable($name, $arg->variable_value);
+                }
             }
         }
+
         // Currently, we do not support input sensitive symbolic functions
         // if (isset($this->input_sensitive_symbolic_functions) && in_array($name, $this->input_sensitive_symbolic_functions)) {
         //     foreach ($argValues as $arg) {

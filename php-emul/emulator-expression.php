@@ -311,9 +311,9 @@ trait EmulatorExpression {
                   $node instanceof Node\Expr\BinaryOp\LogicalOr)) {
                 // No short circuiting is involved and we can evaluate the right hand sight now
                 $r = $this->evaluate_expression($node->right, $is_symbolic);
-                if ($is_symbolic) {
-                    return new SymbolicVariable();
-                }
+                //if ($is_symbolic) {
+                //    return new SymbolicVariable();
+                //}
             }
 			// $r=$this->evaluate_expression($node->right);
 			if ($node instanceof Node\Expr\BinaryOp\Plus) {
@@ -489,9 +489,20 @@ trait EmulatorExpression {
                 return $l >> $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
-                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+			    if ($l instanceof  SymbolicVariable && $r instanceof SymbolicVariable) {
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value);
+			        //return $l->variable_value;
                 }
+			    if ($l instanceof SymbolicVariable) {
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r);
+			        //return $l->variable_value . $r;
+                } else if ($r instanceof  SymbolicVariable) {
+                    return new SymbolicVariable("symbolic concat", $l . $r->variable_value);
+			        //return $l . $r->variable_value;
+                }
+//                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+//                  return new SymbolicVariable();
+//                }
                 return $l . $r;
             }
 			// elseif ($node instanceof Node\Expr\BinaryOp\Spaceship)
@@ -517,7 +528,9 @@ trait EmulatorExpression {
 						$res.=$part;
 					else
 						$res.=$this->evaluate_expression($part, $is_symbolic);
-
+                // rasoulj
+                if ($is_symbolic)
+                    return new SymbolicVariable('Encapsed', $res);
 				return $res;
 			}
 			elseif ($node instanceof Node\Scalar\MagicConst)
@@ -592,7 +605,14 @@ trait EmulatorExpression {
 		        return new SymbolicVariable();
             }
 			//return true if not isset, or if false. only supports variables, and not expressions
-			$res=(!$this->variable_isset($node->expr) or ($expr_value==false));
+            $res = false;
+		    if (is_array($expr_value))
+            {
+                $res = count($expr_value) == 0;
+            } else
+            {
+                $res=(!$this->variable_isset($node->expr) or ($expr_value==false));
+            }
 			$this->error_restore();
 			return $res;
 		}
@@ -669,30 +689,76 @@ trait EmulatorExpression {
 			$names=[null,'include','include_once','require','require_once'];
 			$name=$names[$type];
 			$file=$this->evaluate_expression($node->expr, $is_symbolic);
-			$realfile = $this->get_include_file_path($file);
+			$realfiles = array();
+			// FIX ME
+            // TODO instead of using is_symbolic variable, use the type of the variable $file
+			if ($is_symbolic) {
+                // here we have to take care of probably multiple script inclusion
+                echo "SYMBOLIC SCRIPT INCLUSION\n";
+                $candidates = $this->get_candidate_files($file);
+			    foreach ($candidates as $candid)
+                {
+                    array_push($realfiles, $this->get_include_file_path($candid));
+                }
+            } else {
+                $realfiles = array($this->get_include_file_path($file));
+            }
+
+			$length = count($realfiles);
+			$counter = 1;
+			foreach ($realfiles as $realfile)
+            {
+                //echo "the file to be included ". $realfile . "\n";
+
+                if ($type%2==0) //once
+                    if (isset($this->included_files[$realfile])) return true;
+                if (!file_exists($realfile) or !is_file($realfile))
+                    if ($type<=2) //include
+                    {
+                        $this->warning("{$name}({$file}): failed to open stream: No such file or directory");
+                        return false;
+                    }
+                    else
+                    {
+                        $this->error("{$name}({$file}): failed to open stream: No such file or directory");
+                        return false;
+                    }
+
+                if ($counter === $length) {
+                    // we are in the last item to be included
+                    // no need to fork
+                    array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
+                        "args"=>[$realfile]));
+                    $r=$this->run_file($realfile);
+                    array_pop($this->trace);
+                    return $r;
+                } else {
+                    $forked_process_info = $this->fork_execution([$realfile => []]);
+                    if ($forked_process_info !== false) {
+                        list($pid, $child_pid) = $forked_process_info;
+                        if ($child_pid === 0) {
+                            array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
+                                "args"=>[$realfile]));
+                            $r=$this->run_file($realfile);
+                            array_pop($this->trace);
+                            // fork the execution
+                            return $r;
+                        }
+                    } else {
+                        // Terminated
+                        $counter += 1;
+                    }
+                }
+
+            }
+
+
 
 			// $realfile =realpath(dirname($this->current_file)."/".$file); //first check the directory of the file using include (as per php)
 			// if (!file_exists($realfile) or !is_file($realfile)) //second check current dir
 			// 	$realfile=realpath($file);
 
-			if ($type%2==0) //once
-				if (isset($this->included_files[$realfile])) return true;
-			if (!file_exists($realfile) or !is_file($realfile))
-				if ($type<=2) //include
-				{
-					$this->warning("{$name}({$file}): failed to open stream: No such file or directory");
-					return false;
-				}
-				else
-				{
-					$this->error("{$name}({$file}): failed to open stream: No such file or directory");
-					return false;
-				}
-			array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
-				"args"=>[$realfile]));
-			$r=$this->run_file($realfile);
-			array_pop($this->trace);
-			return $r;
+
 		}
 		elseif ($node instanceof Node\Expr\Ternary)
 		{

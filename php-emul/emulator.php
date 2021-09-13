@@ -85,6 +85,7 @@ class Emulator
         $this->initenv = $init_environ;
         $this->httpverb = $httpverb;
         $this->init($init_environ, $predefined_constants);
+        echo $correlation_id;
         $this->correlation_id = $correlation_id;
         $this->lineLogger = new LineLogger(Utils::$PATH_PREFIX, $this->correlation_id);
         if(!defined('EXECUTED_FROM_PHPUNIT')) {
@@ -419,7 +420,53 @@ class Emulator
             return get_include_path();
         }
     }
-
+    /*
+    public function list_all_files(string $dir)
+    {
+        $files = array();
+        $dh = new \DirectoryIterator($dir);
+        foreach($dh as $item)
+        {
+            if (! $item->isDot())
+            {
+                if ($item->isDir()) {
+                    $items = $this->list_all_files (  $item->getPathname());
+                    foreach ( $items as $item) {
+                        array_push($files, $item);
+                    }
+                } else {
+                    array_push($files, $dir . "/" . $item->getFilename());
+                }
+            }
+        }
+        return $files;
+    }
+    */
+    public function get_candidate_files(string $regex)
+    {
+        // this is redundant, because we keep doing this for every regex script inclusion
+        // we should do it once and use it evry time
+        // reduce performance overhead
+        $candidates = array();
+        foreach(glob($regex) as $file)
+        {
+            array_push($candidates, $file);
+        }
+        /*
+        $files = $this->list_all_files($this->main_directory);
+        foreach ($files as $file)
+        {
+            if ( strpos($file, "themes") !== false) {
+                echo "HERE\n";
+            }
+            if (preg_match($regex , $file) == 1 )
+            {
+                array_push($candidates, $file);
+            }
+        }
+        */
+        return $candidates;
+    }
     public function get_include_file_path(string $file_name)
     {
         // If the path is absolute (/ or \ or relative . or ..) include_path is ignored
@@ -547,6 +594,7 @@ class Emulator
         $this->variable_stack['global']=array(); //the first key in var_stack is the global scope
         $this->reference_variables_to_stack();
         foreach ($init_environ as $k=>$v) {
+
             if ($k === '_SESSION') {
                 foreach (array_keys($v) as $key) {
                     $v[$key] = new SymbolicVariable();
@@ -887,13 +935,14 @@ class Emulator
             }
             return $this->symbol_table($node_name,$key,$create);
         }
-	elseif ($node instanceof Node\Expr\ArrayItem) {
-		// rasoul
-		if (! ($node->value instanceof Node\Expr\PropertyFetch || $node->value instanceof Node\Expr\StaticPropertyFetch)){
-			return $this->symbol_table($node->value->name, $key, $create);
-		} else {
-		        return $this->symbol_table($node->value, $key, $create);
-		}	
+        elseif ($node instanceof Node\Expr\ArrayItem) {
+            // rasoul
+            if (! ($node->value instanceof Node\Expr\PropertyFetch || $node->value instanceof Node\Expr\StaticPropertyFetch)){
+                return $this->symbol_table($node->value->name, $key, $create);
+            } else {
+                return $this->symbol_table($node->value, $key, $create);
+            }
+
         }
         elseif ($node instanceof Node\Expr)
         {
@@ -1112,9 +1161,13 @@ class Emulator
         $this->included_files[$this->current_file]=true;
 
         $this->ast = $this->parse($file);
+        if ($file == "/storage/animateDead/distributed_animate_dead/php/debloating_templates/4.6/wp-includes/cron.php") {
+            //echo "HERE\n";
+        }
         $res = $this->run_code($this->ast);
         // $this->verbose(strcolor(substr($this->current_file,strlen($this->folder))." finished.".PHP_EOL, "light green"));
         $this->verbose(strcolor(sprintf("%s finished.".PHP_EOL, $this->current_file), "light green"));
+
         $this->context_restore();
 
         if ($this->return)
@@ -1289,9 +1342,14 @@ class Emulator
                     }
                 }
             }
+            //if ($this->current_file == "/storage/animateDead/distributed_animate_dead/php/debloating_templates/4.6/wp-includes/template-loader.php" && $node->getLine() == 74) {
+            //   echo "HERE\n";
+            //}
+
             if ($node->getLine()!=$this->current_line)
             {
                 $this->current_line=$node->getLine();
+
                 if ($this->verbose)
                     $this->verbose(sprintf("%s:%d\n",$this->filename_only(),$this->current_line),3);
             }

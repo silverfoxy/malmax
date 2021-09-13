@@ -761,6 +761,11 @@ class OOEmulator extends Emulator
 				$this->notice("Undefined variable: {$name}");	
 				return $this->null_reference($key);
 			}
+            if ($base instanceof SymbolicVariable)
+            {
+                $key = 'unkown';
+                return new SymbolicVariable( "PropertyFetch from " + $base->variable_name);
+            }
 			$var=&$base[$key2];
 			if ($var instanceof EmulatorObject)
 			{
@@ -942,6 +947,13 @@ class OOEmulator extends Emulator
 			$base=&$this->symbol_table($node->var,$key2,false);
 			if ($key2===null)
 				return false;
+
+			// rasoul
+            // TODO: check the logic
+			if ($base instanceof SymbolicVariable)
+            {
+                return true;
+            }
 			$var=&$base[$key2];
 			if ($var instanceof EmulatorObject)
 			{
