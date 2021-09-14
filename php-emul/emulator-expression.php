@@ -694,7 +694,6 @@ trait EmulatorExpression {
             // TODO instead of using is_symbolic variable, use the type of the variable $file
 			if ($is_symbolic) {
                 // here we have to take care of probably multiple script inclusion
-                echo "SYMBOLIC SCRIPT INCLUSION\n";
                 $candidates = $this->get_candidate_files($file);
 			    foreach ($candidates as $candid)
                 {
@@ -704,27 +703,23 @@ trait EmulatorExpression {
                 $realfiles = array($this->get_include_file_path($file));
             }
 
-			$length = count($realfiles);
-			$counter = 1;
+			$candidate_files = count($realfiles);
+			$processed_files = 1;
 			foreach ($realfiles as $realfile)
             {
-                //echo "the file to be included ". $realfile . "\n";
-
                 if ($type%2==0) //once
                     if (isset($this->included_files[$realfile])) return true;
-                if (!file_exists($realfile) or !is_file($realfile))
-                    if ($type<=2) //include
-                    {
+                if (!file_exists($realfile) or !is_file($realfile)) {
+                    if ($type <= 2) { // include
                         $this->warning("{$name}({$file}): failed to open stream: No such file or directory");
                         return false;
-                    }
-                    else
-                    {
+                    } else { // require
                         $this->error("{$name}({$file}): failed to open stream: No such file or directory");
                         return false;
                     }
+                }
 
-                if ($counter === $length) {
+                if ($processed_files === $candidate_files) {
                     // we are in the last item to be included
                     // no need to fork
                     array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
@@ -734,19 +729,17 @@ trait EmulatorExpression {
                     return $r;
                 } else {
                     $forked_process_info = $this->fork_execution([$realfile => []]);
-                    if ($forked_process_info !== false) {
-                        list($pid, $child_pid) = $forked_process_info;
-                        if ($child_pid === 0) {
-                            array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
-                                "args"=>[$realfile]));
-                            $r=$this->run_file($realfile);
-                            array_pop($this->trace);
-                            // fork the execution
-                            return $r;
-                        }
-                    } else {
-                        // Terminated
-                        $counter += 1;
+                    list($pid, $child_pid) = $forked_process_info;
+                    if ($child_pid === 0) {
+                        array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
+                            "args"=>[$realfile]));
+                        $r=$this->run_file($realfile);
+                        array_pop($this->trace);
+                        // fork the execution
+                        return $r;
+                    }
+                    else {
+                        $processed_files += 1;
                     }
                 }
 
