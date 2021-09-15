@@ -1,13 +1,14 @@
 <?php
 
 
-namespace PHPEmul;
+namespace malmax\emul;
 
 
 class SymbolicVariable
 {
     public string $variable_name;
     public string $variable_value;
+
     public function __construct($variable_name='',$variable_value = '*')
     {
         $this->variable_name = $variable_name;
@@ -16,12 +17,9 @@ class SymbolicVariable
 
     public function __toString()
     {
+        /* Default value is "*" which works with regex for file inclusion
+         * May confuse logging in other places
+         */
         return $this->variable_value;
-        // for now see if this fixes the problem
-
-        if ($this->variable_name !== '')
-            return sprintf('SymbolicVariable for $%s', $this->variable_name);
-        else
-            return 'SymbolicVariable';
     }
 }

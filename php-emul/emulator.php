@@ -420,51 +420,19 @@ class Emulator
             return get_include_path();
         }
     }
-    /*
-    public function list_all_files(string $dir)
-    {
-        $files = array();
-        $dh = new \DirectoryIterator($dir);
-        foreach($dh as $item)
-        {
-            if (! $item->isDot())
-            {
-                if ($item->isDir()) {
-                    $items = $this->list_all_files (  $item->getPathname());
-                    foreach ( $items as $item) {
-                        array_push($files, $item);
-                    }
-                } else {
-                    array_push($files, $dir . "/" . $item->getFilename());
-                }
-            }
-        }
-        return $files;
-    }
-    */
+
     public function get_candidate_files(string $regex)
     {
-        // this is redundant, because we keep doing this for every regex script inclusion
-        // we should do it once and use it evry time
-        // reduce performance overhead
+        /* NOTE:
+         * This is redundant, because we keep doing this for every regex script inclusion
+         * we should do it once and use it every time reduce performance overhead
+         */
         $candidates = array();
         foreach(glob($regex) as $file)
         {
             array_push($candidates, $file);
         }
-        /*
-        $files = $this->list_all_files($this->main_directory);
-        foreach ($files as $file)
-        {
-            if ( strpos($file, "themes") !== false) {
-                echo "HERE\n";
-            }
-            if (preg_match($regex , $file) == 1 )
-            {
-                array_push($candidates, $file);
-            }
-        }
-        */
+
         return $candidates;
     }
     public function get_include_file_path(string $file_name)
@@ -936,7 +904,6 @@ class Emulator
             return $this->symbol_table($node_name,$key,$create);
         }
         elseif ($node instanceof Node\Expr\ArrayItem) {
-            // rasoul
             if (! ($node->value instanceof Node\Expr\PropertyFetch || $node->value instanceof Node\Expr\StaticPropertyFetch)){
                 return $this->symbol_table($node->value->name, $key, $create);
             } else {
@@ -1155,25 +1122,18 @@ class Emulator
         $context->file=$realfile;
         $context->line=1;
         $this->context_switch($context);
-        // $this->verbose(sprintf("Now running %s...\n",substr($this->current_file,strlen($this->folder)) ));
+
         $this->verbose(strcolor(sprintf("Now running %s...\n", $this->current_file), "light green"));
-
         $this->included_files[$this->current_file]=true;
-
         $this->ast = $this->parse($file);
-        if ($file == "/storage/animateDead/distributed_animate_dead/php/debloating_templates/4.6/wp-includes/cron.php") {
-            //echo "HERE\n";
-        }
         $res = $this->run_code($this->ast);
-        // $this->verbose(strcolor(substr($this->current_file,strlen($this->folder))." finished.".PHP_EOL, "light green"));
         $this->verbose(strcolor(sprintf("%s finished.".PHP_EOL, $this->current_file), "light green"));
 
         $this->context_restore();
 
         if ($this->return)
             $this->return=false;
-        // $this->current_file=$last_file;
-        // $this->verbose('Final merge: '.getmypid().PHP_EOL.print_r($this->lineLogger->coverage_info, true));
+
         return $res;
     }
     /**

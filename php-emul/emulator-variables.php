@@ -1,6 +1,6 @@
 <?php
 
-namespace PHPEmul;
+namespace malmax\emul;
 
 require_once "SymbolicVariable.php";
 
@@ -79,7 +79,6 @@ trait EmulatorVariables
 	 */
 	function variable_get($node)
     {
-	    //echo "Getting variable : ".$this->print_ast($node)."\n";
 		$r=&$this->symbol_table($node,$key,false);
 		if ($key!==null) {
             if (is_string($r))

@@ -1,6 +1,6 @@
 <?php
 
-function curl_setopt_mock(PHPEmul\Emulator $emul, $ch , /*int*/ $option  , $callback )
+function curl_setopt_mock(emul\Emulator $emul, $ch , /*int*/ $option  , $callback )
 {
 	$args=func_get_args();
 	array_shift($args); //$emul

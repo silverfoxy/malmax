@@ -1,5 +1,5 @@
 <?php
-function session_name_mock(\PHPEmul\Emulator $emul,string $name='')
+function session_name_mock(emul\Emulator $emul, string $name='')
 {
 	if ($name !== '') {
 	    $previous_name = $emul->session_name;

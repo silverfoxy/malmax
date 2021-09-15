@@ -2,6 +2,7 @@
 
 namespace PHPEmul;
 
+use malmax\emul\SymbolicVariable;
 use malmax\ExecutionMode;
 use PhpParser\Node;
 
@@ -311,11 +312,7 @@ trait EmulatorExpression {
                   $node instanceof Node\Expr\BinaryOp\LogicalOr)) {
                 // No short circuiting is involved and we can evaluate the right hand sight now
                 $r = $this->evaluate_expression($node->right, $is_symbolic);
-                //if ($is_symbolic) {
-                //    return new SymbolicVariable();
-                //}
             }
-			// $r=$this->evaluate_expression($node->right);
 			if ($node instanceof Node\Expr\BinaryOp\Plus) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
                     return new SymbolicVariable();
@@ -491,18 +488,13 @@ trait EmulatorExpression {
 			elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
 			    if ($l instanceof  SymbolicVariable && $r instanceof SymbolicVariable) {
 			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value);
-			        //return $l->variable_value;
                 }
 			    if ($l instanceof SymbolicVariable) {
 			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r);
-			        //return $l->variable_value . $r;
                 } else if ($r instanceof  SymbolicVariable) {
                     return new SymbolicVariable("symbolic concat", $l . $r->variable_value);
-			        //return $l . $r->variable_value;
                 }
-//                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-//                  return new SymbolicVariable();
-//                }
+
                 return $l . $r;
             }
 			// elseif ($node instanceof Node\Expr\BinaryOp\Spaceship)
@@ -523,14 +515,16 @@ trait EmulatorExpression {
 			elseif ($node instanceof Node\Scalar\Encapsed)
 			{
 				$res="";
-				foreach ($node->parts as $part)	
-					if (is_string($part))
-						$res.=$part;
-					else
-						$res.=$this->evaluate_expression($part, $is_symbolic);
-                // rasoulj
-                if ($is_symbolic)
+				foreach ($node->parts as $part) {
+                    if (is_string($part)) {
+                        $res .= $part;
+                    } else {
+                        $res .= $this->evaluate_expression($part, $is_symbolic);
+                    }
+                }
+                if ($is_symbolic) {
                     return new SymbolicVariable('Encapsed', $res);
+                }
 				return $res;
 			}
 			elseif ($node instanceof Node\Scalar\MagicConst)
@@ -688,12 +682,11 @@ trait EmulatorExpression {
 			$type=$node->type; //1:include,2:include_once,3:require,4:require_once
 			$names=[null,'include','include_once','require','require_once'];
 			$name=$names[$type];
-			$file=$this->evaluate_expression($node->expr, $is_symbolic);
+			$file = $this->evaluate_expression($node->expr, $is_symbolic);
 			$realfiles = array();
-			// FIX ME
-            // TODO instead of using is_symbolic variable, use the type of the variable $file
-			if ($is_symbolic) {
-                // here we have to take care of probably multiple script inclusion
+
+			if ($file instanceof SymbolicVariable) {
+                // Get the list of candidate files for include statement
                 $candidates = $this->get_candidate_files($file);
 			    foreach ($candidates as $candid)
                 {
@@ -707,21 +700,24 @@ trait EmulatorExpression {
 			$processed_files = 1;
 			foreach ($realfiles as $realfile)
             {
-                if ($type%2==0) //once
-                    if (isset($this->included_files[$realfile])) return true;
-                if (!file_exists($realfile) or !is_file($realfile)) {
-                    if ($type <= 2) { // include
-                        $this->warning("{$name}({$file}): failed to open stream: No such file or directory");
-                        return false;
-                    } else { // require
-                        $this->error("{$name}({$file}): failed to open stream: No such file or directory");
+                if (!$file instanceof SymbolicVariable) {
+                    /* Symbolic files are always mapped to existing files on the file system as per
+                     * "get_candidate_files"s implementation
+                     */
+                    if ($type%2==0) //once
+                        if (isset($this->included_files[$realfile])) return true;
+                    if (!file_exists($realfile) or !is_file($realfile)) {
+                        if ($type <= 2) { // include
+                            $this->warning("{$name}({$file}): failed to open stream: No such file or directory");
+                        } else { // require
+                            $this->error("{$name}({$file}): failed to open stream: No such file or directory");
+                        }
                         return false;
                     }
                 }
 
                 if ($processed_files === $candidate_files) {
-                    // we are in the last item to be included
-                    // no need to fork
+                    // No need to fork for single or last file to be included
                     array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
                         "args"=>[$realfile]));
                     $r=$this->run_file($realfile);
@@ -735,7 +731,6 @@ trait EmulatorExpression {
                             "args"=>[$realfile]));
                         $r=$this->run_file($realfile);
                         array_pop($this->trace);
-                        // fork the execution
                         return $r;
                     }
                     else {
