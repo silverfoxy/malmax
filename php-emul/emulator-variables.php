@@ -78,7 +78,7 @@ trait EmulatorVariables
 	 * @return mixed       
 	 */
 	function variable_get($node)
-	{
+    {
 		$r=&$this->symbol_table($node,$key,false);
 		if ($key!==null) {
             if (is_string($r))

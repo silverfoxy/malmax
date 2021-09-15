@@ -253,17 +253,17 @@ trait EmulatorFunctions
 				$parameter_reflection=null;
 			if ($arg instanceof Node)
 			{
-				if ($parameter_reflection!==null and $parameter_reflection->isPassedByReference()) //byref 
+				if ($parameter_reflection!==null and $parameter_reflection->isPassedByReference()) //byref
 				{
-					if (!$this->variable_isset($arg->value))//should create the variable, like byref return vars
+					if (!$this->variable_isset($arg->value)) // Should create the variable, like byref return vars
 						$this->variable_set($arg->value);
-					#has to assign to this, otherwise GC will remove ref before it is used by call_function
+                    // has to assign to this, otherwise GC will remove ref before it is used by call_function
 					$this->ref=&$this->variable_reference($arg->value); 
 					$argValues[]=&$this->ref;
 				}
 				else
 				{
-				 	$val=$this->evaluate_expression($arg->value, $is_symbolic);
+                    $val=$this->evaluate_expression($arg->value, $is_symbolic);
 					#auto-wrap. note: ReflectionParameter::isCallable always returns false , either in PHP 5.4 or 7.0.2
 					#	it probably only works for user-classes
 				 	if ( function_exists("callback_requiring_functions") and isset(callback_requiring_functions()[strtolower($name)]) 
@@ -307,7 +307,7 @@ trait EmulatorFunctions
         elseif (ob_get_level()==0) {
 		    ob_start();
         }
-		set_error_handler(array($this, 'userfunc_err_handler'), E_WARNING|E_ALL);
+		set_error_handler(array($this, 'userfunc_err_handler'), E_ERROR|~E_DEPRECATED);
 		$this->arg_values = $argValues;
 		$ret=call_user_func_array($name,$argValues); //core function
         // set_error_handler($current_error_handler);
@@ -336,28 +336,28 @@ trait EmulatorFunctions
 	{
 		$argValues=$this->core_function_prologue($name,$args); #this has to be before the trace line,
         // If any of the function arguments is Symbolic then return symbol
-        foreach ($argValues as $arg) {
-            if ($arg instanceof SymbolicVariable) {
-                return new SymbolicVariable($name);
+
+        // assigning variable_value is only correct for define
+        // not correct in general!
+        if ($name != "define") {
+            foreach ($argValues as $arg) {
+                if ($arg instanceof SymbolicVariable) {
+                    return new SymbolicVariable($name, $arg->variable_value);
+                }
             }
         }
-        // Currently, we do not support input sensitive symbolic functions
-        // if (isset($this->input_sensitive_symbolic_functions) && in_array($name, $this->input_sensitive_symbolic_functions)) {
-        //     foreach ($argValues as $arg) {
-        //         if ($arg instanceof SymbolicVariable) {
-        //             return new SymbolicVariable($name);
-        //         }
-        //     }
-        // }
+
 		if ($this->terminated) {
 		    return null;
         }
+
 		array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,"args"=>$argValues));
 		if (isset($this->mock_functions[strtolower($name)])) { //mocked
             $ret = $this->run_mocked_core_function($name, $argValues);
         }
-		else //original core function
-			$ret=$this->run_original_core_function($name,$argValues);
+		else { //original core function
+            $ret = $this->run_original_core_function($name, $argValues);
+        }
 		array_pop($this->trace);
 		return $ret;
 	}
@@ -371,6 +371,7 @@ trait EmulatorFunctions
 	{
 	    // If its a Symbolic function, return a Symbol.
         // If its Symbolic if the args are symbolic, wait for args to be resolved.
+
         if (isset($this->symbolic_functions) && in_array($name, $this->symbolic_functions)) {
             return new SymbolicVariable($name);
         }
@@ -384,16 +385,16 @@ trait EmulatorFunctions
 			return $ret;
 		}
 		elseif (function_exists($name)) //global core function
-			$ret=$this->run_core_function($name,$args);
+        {
+            $ret=$this->run_core_function($name,$args);
+        }
 		else
 		{
 			$fqname=$this->namespaced_name($name);
 			if ($this->user_function_exists($fqname)) //in this namespace
 				$ret=$this->run_user_function($fqname,$args); 
 			elseif ($this->user_function_exists($name)) //in global namespace
-				$ret=$this->run_user_function($name,$args); 
-			// elseif (function_exists($this->current_namespace($name))) //in this namespace core function (shouldn't really happen)
-			// 	$ret=$this->run_core_function($this->current_namespace($name),$args);
+				$ret=$this->run_user_function($name,$args);
 			else
 			{
 				$this->error("Call to undefined function {$name}()",$args);

@@ -761,6 +761,11 @@ class OOEmulator extends Emulator
 				$this->notice("Undefined variable: {$name}");	
 				return $this->null_reference($key);
 			}
+            if ($base instanceof SymbolicVariable)
+            {
+                $key = 'unknown';
+                return new SymbolicVariable("PropertyFetch from " + $base->variable_name);
+            }
 			$var=&$base[$key2];
 			if ($var instanceof EmulatorObject)
 			{
@@ -942,6 +947,10 @@ class OOEmulator extends Emulator
 			$base=&$this->symbol_table($node->var,$key2,false);
 			if ($key2===null)
 				return false;
+
+			if ($base instanceof SymbolicVariable) {
+                return true;
+            }
 			$var=&$base[$key2];
 			if ($var instanceof EmulatorObject)
 			{
@@ -951,20 +960,10 @@ class OOEmulator extends Emulator
 					if (isset($var->property_visibilities[$property_name]))
 						$visibility=$var->property_visibilities[$property_name];
 					else //dynamic properties are public
-						$visibility=EmulatorObject::Visibility_Public; 
+						$visibility=EmulatorObject::Visibility_Public;
 
-					if (isset($var->property_class[$property_name]))
-						$class=$var->property_class[$property_name];
-					else //dynamics properties are of the object
-						$class=$var->classname;
+                    $class = $var->property_class[$property_name] ?? $var->classname;
 
-					// echo "___\n";
-					// var_dump("visibility:",$visibility);
-					// var_dump("class:",$class);
-					// var_dump("self:",$this->current_self);
-					// var_dump("is_a:",$this->is_a((string)$this->current_self, $class,true));
-					// var_dump("is_a2:",$this->is_a($class,(string)$this->current_self,true));
-					// var_dump("ancestry:",$this->ancestry($class));
 					return ($visibility==EmulatorObject::Visibility_Public
 						or ($visibility==EmulatorObject::Visibility_Protected and ($this->is_a((string)$this->current_self, $class,true) or $this->is_a( $class,(string)$this->current_self,true)) )
 						or ($visibility==EmulatorObject::Visibility_Private and strtolower($this->current_this->classname ?? $this->current_class)==strtolower($class) )

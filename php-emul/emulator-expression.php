@@ -113,6 +113,7 @@ trait EmulatorExpression {
 			return $ret;
 			
 		}
+
 		elseif ($node instanceof Node\Expr\AssignRef)
 		{
 		    $expr_value = $this->evaluate_expression($node->expr);
@@ -129,6 +130,7 @@ trait EmulatorExpression {
 		        $this->variable_set($node->var, $expr_value);
             }
 		}
+
 		elseif ($node instanceof Node\Expr\Assign)
 		{
 			if ($node->var instanceof Node\Expr\List_) //list(x,y)=f()
@@ -223,7 +225,11 @@ trait EmulatorExpression {
             if ($expr instanceof SymbolicVariable) {
                 return new SymbolicVariable();
             }
-            return !$this->evaluate_expression($expr, $is_symbolic);
+            if ($expr instanceof \stdClass) {
+                return !$expr;
+            } else {
+                return !$this->evaluate_expression($expr, $is_symbolic);            }
+
         }
 		elseif ($node instanceof Node\Expr\BitwiseNot) {
             $expr = $this->evaluate_expression($node->expr);
@@ -305,11 +311,7 @@ trait EmulatorExpression {
                   $node instanceof Node\Expr\BinaryOp\LogicalOr)) {
                 // No short circuiting is involved and we can evaluate the right hand sight now
                 $r = $this->evaluate_expression($node->right, $is_symbolic);
-                if ($is_symbolic) {
-                    return new SymbolicVariable();
-                }
             }
-			// $r=$this->evaluate_expression($node->right);
 			if ($node instanceof Node\Expr\BinaryOp\Plus) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
                     return new SymbolicVariable();
@@ -483,9 +485,15 @@ trait EmulatorExpression {
                 return $l >> $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
-                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+			    if ($l instanceof  SymbolicVariable && $r instanceof SymbolicVariable) {
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value);
                 }
+			    if ($l instanceof SymbolicVariable) {
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r);
+                } else if ($r instanceof  SymbolicVariable) {
+                    return new SymbolicVariable("symbolic concat", $l . $r->variable_value);
+                }
+
                 return $l . $r;
             }
 			// elseif ($node instanceof Node\Expr\BinaryOp\Spaceship)
@@ -506,12 +514,16 @@ trait EmulatorExpression {
 			elseif ($node instanceof Node\Scalar\Encapsed)
 			{
 				$res="";
-				foreach ($node->parts as $part)	
-					if (is_string($part))
-						$res.=$part;
-					else
-						$res.=$this->evaluate_expression($part, $is_symbolic);
-
+				foreach ($node->parts as $part) {
+                    if (is_string($part)) {
+                        $res .= $part;
+                    } else {
+                        $res .= $this->evaluate_expression($part, $is_symbolic);
+                    }
+                }
+                if ($is_symbolic) {
+                    return new SymbolicVariable('Encapsed', $res);
+                }
 				return $res;
 			}
 			elseif ($node instanceof Node\Scalar\MagicConst)
@@ -586,7 +598,14 @@ trait EmulatorExpression {
 		        return new SymbolicVariable();
             }
 			//return true if not isset, or if false. only supports variables, and not expressions
-			$res=(!$this->variable_isset($node->expr) or ($expr_value==false));
+            $res = false;
+		    if (is_array($expr_value))
+            {
+                $res = count($expr_value) == 0;
+            } else
+            {
+                $res=(!$this->variable_isset($node->expr) or ($expr_value==false));
+            }
 			$this->error_restore();
 			return $res;
 		}
@@ -662,31 +681,71 @@ trait EmulatorExpression {
 			$type=$node->type; //1:include,2:include_once,3:require,4:require_once
 			$names=[null,'include','include_once','require','require_once'];
 			$name=$names[$type];
-			$file=$this->evaluate_expression($node->expr, $is_symbolic);
-			$realfile = $this->get_include_file_path($file);
+			$file = $this->evaluate_expression($node->expr, $is_symbolic);
+			$realfiles = array();
+
+			if ($file instanceof SymbolicVariable) {
+                // Get the list of candidate files for include statement
+                $candidates = $this->get_candidate_files($file);
+			    foreach ($candidates as $candid)
+                {
+                    array_push($realfiles, $this->get_include_file_path($candid));
+                }
+            } else {
+                $realfiles = array($this->get_include_file_path($file));
+            }
+
+			$candidate_files = count($realfiles);
+			$processed_files = 1;
+			foreach ($realfiles as $realfile)
+            {
+                if (!$file instanceof SymbolicVariable) {
+                    /* Symbolic files are always mapped to existing files on the file system as per
+                     * "get_candidate_files"s implementation
+                     */
+                    if ($type%2==0) //once
+                        if (isset($this->included_files[$realfile])) return true;
+                    if (!file_exists($realfile) or !is_file($realfile)) {
+                        if ($type <= 2) { // include
+                            $this->warning("{$name}({$file}): failed to open stream: No such file or directory");
+                        } else { // require
+                            $this->error("{$name}({$file}): failed to open stream: No such file or directory");
+                        }
+                        return false;
+                    }
+                }
+
+                if ($processed_files === $candidate_files) {
+                    // No need to fork for single or last file to be included
+                    array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
+                        "args"=>[$realfile]));
+                    $r=$this->run_file($realfile);
+                    array_pop($this->trace);
+                    return $r;
+                } else {
+                    $forked_process_info = $this->fork_execution([$realfile => []]);
+                    list($pid, $child_pid) = $forked_process_info;
+                    if ($child_pid === 0) {
+                        array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
+                            "args"=>[$realfile]));
+                        $r=$this->run_file($realfile);
+                        array_pop($this->trace);
+                        return $r;
+                    }
+                    else {
+                        $processed_files += 1;
+                    }
+                }
+
+            }
+
+
 
 			// $realfile =realpath(dirname($this->current_file)."/".$file); //first check the directory of the file using include (as per php)
 			// if (!file_exists($realfile) or !is_file($realfile)) //second check current dir
 			// 	$realfile=realpath($file);
 
-			if ($type%2==0) //once
-				if (isset($this->included_files[$realfile])) return true;
-			if (!file_exists($realfile) or !is_file($realfile))
-				if ($type<=2) //include
-				{
-					$this->warning("{$name}({$file}): failed to open stream: No such file or directory");
-					return false;
-				}
-				else
-				{
-					$this->error("{$name}({$file}): failed to open stream: No such file or directory");
-					return false;
-				}
-			array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
-				"args"=>[$realfile]));
-			$r=$this->run_file($realfile);
-			array_pop($this->trace);
-			return $r;
+
 		}
 		elseif ($node instanceof Node\Expr\Ternary)
 		{
@@ -755,7 +814,8 @@ trait EmulatorExpression {
 		elseif (!is_object($node))
             return $node;
 		else
-			$this->error("Unknown expression node: ",$node);
+            $this->error("Unknown expression node: ",$node);
+
 		return null;
 	}
 }
