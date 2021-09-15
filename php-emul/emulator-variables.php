@@ -1,6 +1,6 @@
 <?php
 
-namespace malmax\emul;
+namespace PHPEmul;
 
 require_once "SymbolicVariable.php";
 
