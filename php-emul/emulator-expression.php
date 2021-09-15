@@ -2,7 +2,6 @@
 
 namespace PHPEmul;
 
-use malmax\emul\SymbolicVariable;
 use malmax\ExecutionMode;
 use PhpParser\Node;
 

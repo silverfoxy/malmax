@@ -1,9 +1,9 @@
 <?php
 
-function array_key_exists_mock(emul\Emulator $emul, $key, $array)
+function array_key_exists_mock(PHPEmul\Emulator $emul, $key, $array)
 {
-	if ($key instanceof emul\SymbolicVariable || $array instanceof emul\SymbolicVariable) {
-	    return new emul\SymbolicVariable();
+	if ($key instanceof \PHPEmul\SymbolicVariable || $array instanceof \PHPEmul\SymbolicVariable) {
+	    return new \PHPEmul\SymbolicVariable();
     }
 	else {
 	    if (!is_int($key) && ! is_string($key)) {

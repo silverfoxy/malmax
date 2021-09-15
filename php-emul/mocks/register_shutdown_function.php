@@ -1,6 +1,6 @@
 <?php
 
-function register_shutdown_function_mock(emul\Emulator $emul, $callback, $parameter=null)
+function register_shutdown_function_mock(PHPEmul\Emulator $emul, $callback,$parameter=null)
 {
 	$args=func_get_args();
 	array_shift($args); //emulator
@@ -17,7 +17,7 @@ function register_shutdown_function_mock(emul\Emulator $emul, $callback, $parame
             $name="Unknown::{$name[1]}";
         }
 	}
-	elseif ($name instanceof emul\EmulatorClosure) {
+	elseif ($name instanceof \PHPEmul\EmulatorClosure) {
         $name = '{Closure}';
     }
 	$emul->verbose("Registering shutdown function '{$name}'...\n",4);

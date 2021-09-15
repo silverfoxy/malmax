@@ -27,9 +27,9 @@ function timer($what=-1)
 }
 require_once dirname(__FILE__)."/php-emul/oo.php";
 
-use emul\Checkpoint;
-use emul\LineLogger;
-use emul\SymbolicVariable;
+use PHPEmul\Checkpoint;
+use PHPEmul\LineLogger;
+use PHPEmul\SymbolicVariable;
 use PhpParser\Node;
 if (!function_exists("set_magic_quotes_runtime"))
 {
@@ -57,7 +57,7 @@ abstract class ExecutionMode {
     const OFFLINE = 2;
 }
 
-class PHPAnalyzer extends emul\OOEmulator
+class PHPAnalyzer extends PHPEmul\OOEmulator
 {
     /*
      * Includes the file and line information where this process was forked.

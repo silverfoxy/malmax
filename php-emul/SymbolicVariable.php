@@ -1,7 +1,7 @@
 <?php
 
 
-namespace malmax\emul;
+namespace PHPEmul;
 
 
 class SymbolicVariable

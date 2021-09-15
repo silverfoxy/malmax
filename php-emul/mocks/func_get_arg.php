@@ -1,5 +1,5 @@
 <?php
-function func_get_arg_mock(emul\Emulator $emul, $arg_num)
+function func_get_arg_mock(PHPEmul\Emulator $emul,$arg_num)
 {
 
 	if (count($emul->trace)==0 or !isset($emul->trace[count($emul->trace)-2]->args))
