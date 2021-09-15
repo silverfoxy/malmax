@@ -57,7 +57,7 @@ abstract class ExecutionMode {
     const OFFLINE = 2;
 }
 
-class PHPAnalyzer extends PHPEmul\OOEmulator
+class PHPAnalyzer extends \PHPEmul\OOEmulator
 {
     /*
      * Includes the file and line information where this process was forked.
