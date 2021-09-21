@@ -736,16 +736,7 @@ trait EmulatorExpression {
                         $processed_files += 1;
                     }
                 }
-
             }
-
-
-
-			// $realfile =realpath(dirname($this->current_file)."/".$file); //first check the directory of the file using include (as per php)
-			// if (!file_exists($realfile) or !is_file($realfile)) //second check current dir
-			// 	$realfile=realpath($file);
-
-
 		}
 		elseif ($node instanceof Node\Expr\Ternary)
 		{
@@ -811,7 +802,7 @@ trait EmulatorExpression {
 			return $closure;
 
 		}
-		elseif (!is_object($node))
+		elseif (!$node instanceof Node)
             return $node;
 		else
             $this->error("Unknown expression node: ",$node);

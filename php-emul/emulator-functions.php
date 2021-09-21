@@ -310,7 +310,6 @@ trait EmulatorFunctions
 		set_error_handler(array($this, 'userfunc_err_handler'), E_ERROR|~E_DEPRECATED);
 		$this->arg_values = $argValues;
 		$ret=call_user_func_array($name,$argValues); //core function
-        // set_error_handler($current_error_handler);
         restore_error_handler();
 		if (ob_get_level() > 0) {
 		    $this->output(ob_get_clean());
