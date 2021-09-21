@@ -1167,8 +1167,15 @@ class Emulator
         $this->destruct();
         $this->shutdown();
         // restore_exception_handler();
-        if (EXECUTED_FROM_PHPUNIT && ob_get_level() === 0) {
-            ob_start();
+        if (EXECUTED_FROM_PHPUNIT) {
+            if (ob_get_level() === 0) {
+                ob_start();
+            }
+            else {
+                while (ob_get_level() > 1) {
+                    ob_get_clean();
+                }
+            }
         }
         restore_error_handler();
         chdir($this->original_dir);
