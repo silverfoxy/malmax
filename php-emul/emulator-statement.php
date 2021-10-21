@@ -224,7 +224,10 @@ trait EmulatorStatement
 			foreach ($node->declares as $declare)
 			{
 				$data[$declare->key]=$this->evaluate_expression($declare->value);
-				$code.="{$declare->key}='".$this->evaluate_expression($declare->value)."',";
+				if(is_int($this->evaluate_expression($declare->value)))
+                    $code.="{$declare->key}=".$this->evaluate_expression($declare->value).",";
+				else
+				    $code.="{$declare->key}='".$this->evaluate_expression($declare->value)."',";
 			}
 			$code=substr($code,0,-1).");"; 
 			eval($code);
