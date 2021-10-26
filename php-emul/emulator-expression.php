@@ -405,13 +405,22 @@ trait EmulatorExpression {
                 }
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
-				if( $l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-					return new SymbolicVariable();
+				if($l instanceof SymbolicVariable){
+					$forked_process_info = $this->fork_execution([$l = NULL]);
+					list($pid, $child_pid) = $forked_process_info;
+					if($child_pid === 0){
+						return new SymbolicVariable();
+					}
+					else{
+						return $r;
+					}
 				}
-				if(isset($l)) {
-					return $l;}
+				elseif(isset($l)) {
+					return $l;
+				}
 				else {
-					return $r}
+					return $r;
+				}
 
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalOr) {
                 if ($l) {
