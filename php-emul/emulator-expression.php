@@ -404,6 +404,21 @@ trait EmulatorExpression {
 			        return false;
                 }
             }
+			elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
+                if ($l instanceof SymbolicVariable) {
+                    $forked_process_info = $this->fork_execution([]);
+                    list($pid, $child_pid) = $forked_process_info;
+                    if ($child_pid === 0) {
+                        return $l;
+                    } else {
+                        return $r;
+                    }
+                } elseif (isset($l)) {
+                    return $l;
+                } else {
+                    return $r;
+                }
+            }
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalOr) {
                 if ($l) {
                     return true;
