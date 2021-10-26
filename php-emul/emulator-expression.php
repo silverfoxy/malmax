@@ -404,6 +404,15 @@ trait EmulatorExpression {
 			        return false;
                 }
             }
+			elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
+				if( $l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+					return new SymbolicVariable();
+				}
+				if(isset($l)) {
+					return $l;}
+				else {
+					return $r}
+
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalOr) {
                 if ($l) {
                     return true;
