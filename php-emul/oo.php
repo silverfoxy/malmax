@@ -175,6 +175,8 @@ class EmulatorObject
 
 require_once "oo-methods.php";
 require_once "oo-spl-autoload.php";
+require_once "hardcoded-vals.php";
+
 class OOEmulator extends Emulator
 {
 	use OOEmulatorMethods;
@@ -229,7 +231,7 @@ class OOEmulator extends Emulator
 	 */
 	protected $current_class=null;
 
-	protected function define_class($node)
+    protected function define_class($node)
 	{
         //has type, implements (array), stmts (Array), name, extends
         //type=0 is normal, type=16 is abstract
@@ -300,7 +302,8 @@ class OOEmulator extends Emulator
         //
         //     } while ($parent = $parent->getParentClass());
         // }
-        if ($extends) {
+        $predefined = include "hardcoded-vals.php";
+        if ($extends && !in_array($extends,$predefined)) {
             foreach ($this->ancestry($class_index,true) as $parent_class) {
                 if (!$this->user_class_exists($parent_class)) {
                     $this->spl_autoload_call($parent_class);
