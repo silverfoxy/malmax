@@ -1,0 +1,19 @@
+<?php
+return array (
+    "Directory",
+    "stdClass",
+    "__PHP_Incomplete_Class",
+    "Exception",
+    "ErrorException",
+    "php_user_filter",
+    "Closure",
+    "Generator",
+    "ArithmeticError",
+    "AssertionError",
+    "DivisionByZeroError",
+    "Error",
+    "Throwable",
+    "ParseError",
+    "TypeError"
+);
+?>
