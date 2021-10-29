@@ -175,7 +175,6 @@ class EmulatorObject
 
 require_once "oo-methods.php";
 require_once "oo-spl-autoload.php";
-require_once "hardcoded-vals.php";
 
 class OOEmulator extends Emulator
 {
