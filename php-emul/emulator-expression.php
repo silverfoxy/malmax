@@ -408,7 +408,7 @@ trait EmulatorExpression {
                 if ($l instanceof SymbolicVariable) {
                     $forked_process_info = $this->fork_execution([]);
                     list($pid, $child_pid) = $forked_process_info;
-                    if ($child_pid === 0) {
+                    if ($child_pid !== 0) {
                         return $l;
                     } else {
                         return $r;

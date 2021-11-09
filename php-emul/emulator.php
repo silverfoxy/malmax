@@ -131,6 +131,7 @@ class Emulator
     // Total number of forks allowed at any line
     public const FORK_THRESHOLD = 30;
     public array $symbolic_parameters = [];
+    public array $symbolic_parameters_override = [];
     public array $symbolic_functions = [];
     public array $input_sensitive_symbolic_functions = [];
     public array $symbolic_methods = [];
@@ -1600,7 +1601,7 @@ class Emulator
         return $vars;
     }
 
-    protected function fork_execution($new_branch_coverage, bool $always_fork = false) {
+    public function fork_execution($new_branch_coverage, bool $always_fork = false) {
         // $this->verbose('forking: '.($this->reanimate ? 'true' : 'false').PHP_EOL);
         // $this->verbose('reanimation transcript: '.sizeof($this->reanimation_transcript).PHP_EOL);
         // file_put_contents('/home/ubuntu/fork_lines.txt', sprintf('%s:%d:%d'.PHP_EOL, $this->current_file, $this->current_line, getmypid()), FILE_APPEND);

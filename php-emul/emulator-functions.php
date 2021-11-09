@@ -321,24 +321,32 @@ trait EmulatorFunctions
         $this->verbose(strcolor(sprintf('[%d] Error at %s:%d Triggered at %s:%d: %s'.PHP_EOL, getmypid(), $this->current_file, $this->current_line, $errfile, $errline, $errstr), 'red'));
         $this->verbose(print_r($this->arg_values, true));
     }
-	protected function run_mocked_core_function($name,$argValues)
+	protected function run_mocked_core_function($name,$argValues, $args=null)
 	{
 		$mocked_name=$this->mock_functions[strtolower($name)];
 		if (!function_exists($mocked_name))
 			$this->error("Mocked function '{$this->mock_functions[$name]}()' not defined to mock '{$name}()'.");
 		$this->verbose("Calling mocked function {$mocked_name}() instead of {$name}()...\n",4);
+        if ($name === 'in_array') {
+            array_unshift($argValues, $args);
+        }
 		array_unshift($argValues, $this); //emulator is first argument in mock functions
 		$ret=call_user_func_array($mocked_name,$argValues); //core function
 		return $ret;
 	}
 	protected function run_core_function($name,$args)
 	{
-		$argValues=$this->core_function_prologue($name,$args); #this has to be before the trace line,
-        // If any of the function arguments is Symbolic then return symbol
-
-        // assigning variable_value is only correct for define
-        // not correct in general!
-        if ($name != "define") {
+		$argValues = $this->core_function_prologue($name,$args); #this has to be before the trace line,
+        /* If any of the function arguments is Symbolic then return symbol
+         * Assigning variable_value is only correct for define
+         * not correct in general!
+         * Certain builtin functions can handle Symbolic Parameters
+         * These functions are handled in the emulator explicitly
+         * For the rest of builtin functions, we just return a Symbol
+         * If any parameter is symbolic
+         */
+        if ($name !== 'define' &&
+            $name !== 'in_array') {
             foreach ($argValues as $arg) {
                 if ($arg instanceof SymbolicVariable) {
                     return new SymbolicVariable($name, $arg->variable_value);
@@ -352,7 +360,7 @@ trait EmulatorFunctions
 
 		array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,"args"=>$argValues));
 		if (isset($this->mock_functions[strtolower($name)])) { //mocked
-            $ret = $this->run_mocked_core_function($name, $argValues);
+            $ret = $this->run_mocked_core_function($name, $argValues, $args);
         }
 		else { //original core function
             $ret = $this->run_original_core_function($name, $argValues);
