@@ -882,10 +882,20 @@ class Emulator
             // Always return a symbol
             // $this->verbose(print_r($base, true).PHP_EOL);
             // $this->verbose(print_r($key, true).PHP_EOL);
-            if ($key instanceof SymbolicVariable || (!$create && (in_array(strval($key), $this->symbolic_parameters)))
-                || (in_array(strval($key2), $this->symbolic_parameters) && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base)))) {
-                $symbol = new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
-                return $symbol;
+            if ($key instanceof SymbolicVariable // Fetching a symbolic key returns a SymbolicVariable
+                || (!$create && (in_array(strval($key), $this->symbolic_parameters))) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
+                || (in_array(strval($key2), $this->symbolic_parameters)
+                    && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode)
+                    || ($this->extended_logs_emulation_mode && array_key_exists($key, $base)))) {
+
+                /*
+                 * If the base is a symbolic parameter (e.g. $_POST)
+                 * and we are not creating an entry,
+                 * and the key doesn't exist in base,
+                 * and we are not in extended_logs_emulation_mode
+                 * return SymbolicVariable
+                 */
+                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
             }
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));
