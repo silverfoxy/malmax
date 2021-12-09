@@ -131,6 +131,7 @@ class Emulator
     // Total number of forks allowed at any line
     public const FORK_THRESHOLD = 30;
     public array $symbolic_parameters = [];
+    public array $symbolic_parameters_extended_logs_emulation_mode = [];
     public array $symbolic_functions = [];
     public array $input_sensitive_symbolic_functions = [];
     public array $symbolic_methods = [];
@@ -885,8 +886,8 @@ class Emulator
             if ($key instanceof SymbolicVariable // Fetching a symbolic key returns a SymbolicVariable
                 || (!$create && (in_array(strval($key), $this->symbolic_parameters))) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
                 || (in_array(strval($key2), $this->symbolic_parameters)
-                    && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode)
-                    || ($this->extended_logs_emulation_mode && array_key_exists($key, $base)))) {
+                    && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode))
+                    || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base))) {
 
                 /*
                  * If the base is a symbolic parameter (e.g. $_POST)
