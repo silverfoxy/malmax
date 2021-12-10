@@ -154,11 +154,15 @@ trait EmulatorVariables
 	function variable_isset($node)
 	{
 		$this->error_silence();
-		$r=$this->symbol_table($node,$key,false);
+		$r = $this->symbol_table($node,$key,false);
 		$this->error_restore();
 		if ($r instanceof SymbolicVariable) {
-            // $this->verbose('Variable isset -> '.print_r($r, true).PHP_EOL);
-		    return $r;
+            if ($r->isset === true) {
+                return true;
+            }
+            else {
+                return $r;
+            }
         }
 		elseif($key instanceof SymbolicVariable) {
 		    // $this->verbose('Variable isset -> Symbolic'.PHP_EOL);

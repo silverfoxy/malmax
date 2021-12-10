@@ -896,7 +896,7 @@ class Emulator
                  * and we are not in extended_logs_emulation_mode
                  * return SymbolicVariable
                  */
-                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
+                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', true);
             }
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));
