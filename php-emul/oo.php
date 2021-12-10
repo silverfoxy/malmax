@@ -766,7 +766,7 @@ class OOEmulator extends Emulator
             if ($base instanceof SymbolicVariable)
             {
                 $key = 'unknown';
-                return new SymbolicVariable("PropertyFetch from " + $base->variable_name);
+                return new SymbolicVariable("PropertyFetch from " . $base->variable_name);
             }
 			$var=&$base[$key2];
 			if ($var instanceof EmulatorObject)

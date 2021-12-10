@@ -2,6 +2,7 @@
 
 namespace PHPEmul;
 
+use AnimateDead\Utils;
 use PhpParser\Node;
 
 trait EmulatorFunctions
@@ -318,8 +319,9 @@ trait EmulatorFunctions
 	}
     public function userfunc_err_handler($errno, $errstr, $errfile, $errline)
     {
-        $this->verbose(strcolor(sprintf('[%d] Error at %s:%d Triggered at %s:%d: %s'.PHP_EOL, getmypid(), $this->current_file, $this->current_line, $errfile, $errline, $errstr), 'red'));
-        $this->verbose(print_r($this->arg_values, true));
+        $error_message = sprintf('[%d] Error at %s:%d Triggered at %s:%d: %s'.PHP_EOL, $this->execution_id, $this->current_file, $this->current_line, $errfile, $errline, $errstr);
+        $this->verbose(strcolor($error_message, 'red'));
+        Utils::log_error($this->execution_id, $error_message);
     }
 	protected function run_mocked_core_function($name,$argValues)
 	{
