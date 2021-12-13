@@ -392,6 +392,15 @@ trait EmulatorExpression {
                 }
                 return $l >= $r;
             }
+            elseif ($node instanceof Node\Expr\BinaryOp\Spaceship) {
+                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable();
+                }
+                if ($l<$r) {
+                    return -1;
+                }
+                return $l >= $r;
+            }
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
 			    if ($l) {
 			        $r = $this->evaluate_expression($node->right, $is_symbolic);
