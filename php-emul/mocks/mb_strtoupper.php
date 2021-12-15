@@ -6,7 +6,8 @@ function mb_strtoupper_mock($emul, $string, $encoding=null)
 {
     if ($string instanceof SymbolicVariable) {
         $regex_value = $string->variable_value;
-        return mb_strtoupper($regex_value);;
+        $string->variable_value = mb_strtoupper($regex_value);
+        return $string;
     }
     if ($encoding instanceof SymbolicVariable) {
         $encoding = null;

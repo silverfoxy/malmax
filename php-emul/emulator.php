@@ -896,6 +896,27 @@ class Emulator
                  * and we are not in extended_logs_emulation_mode
                  * return SymbolicVariable
                  */
+                /*
+                 * For Concrete arrays and Symbolic keys, perform regex matching
+                 */
+                if ($key instanceof SymbolicVariable && !$base instanceof SymbolicVariable) {
+                    $matched_elements = $this->regex_array_fetch($base, $key->variable_value);
+                    if (sizeof($matched_elements) === sizeof($base)) {
+                        // Regex matched all elements
+                        $dbg = 1;
+                    }
+                    elseif (sizeof($matched_elements) > 0) {
+                        // Regex matched some elements
+                        $dbg = 1;
+                    }
+                    else {
+                        // Regex matched no elements
+                        $key = null;
+                        return $base;
+                    }
+                    $dbg = 1;
+
+                }
                 return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', true);
             }
             // else {
@@ -935,6 +956,55 @@ class Emulator
             $this->error("Can not find variable reference of this node type.",$node);
             return $this->null_reference($key);
         }
+    }
+    /**
+     * Removes ** with * in regex
+     * @param $regex
+     * @return void
+     */
+    function summarize_regex($regex, $prepare_preg_replace=false) {
+        $chars = str_split($regex);
+        $summarized_regex = $prepare_preg_replace ? '/' : '';
+        $asterisk_last = false;
+        foreach ($chars as $char) {
+            if ($char !== '*') {
+                if ($prepare_preg_replace && $char === '\\') {
+                    // \ in preg_replace regex should be replaced with \\\\ to work as intended.
+                    $char = "\\\\\\\\";
+                }
+                $asterisk_last = false;
+                $summarized_regex .= $char;
+            }
+            else if ($asterisk_last === false) {
+                $asterisk_last = true;
+                // Convert * to .* for preg_replace
+                if ($prepare_preg_replace === true) {
+                    $summarized_regex .= '.';
+                }
+                $summarized_regex .= $char;
+            }
+            // Skipping duplicate asterisks
+        }
+        $summarized_regex .= $prepare_preg_replace ? '/' : '';
+        return $summarized_regex;
+    }
+
+    /**
+     * Returns the elements in $array that match the $regex
+     * @param $array
+     * @param $regex
+     * @return array
+     */
+    function regex_array_fetch($array, $regex): array
+    {
+        $regex = $this->summarize_regex($regex, true);
+        $matched_elements = [];
+        foreach ($array as $element) {
+            if (is_string($element) && preg_match($regex, $element) === 1) {
+                $matched_elements[] = $element;
+            }
+        }
+        return $matched_elements;
     }
     /**
      * Resolves symbol name
