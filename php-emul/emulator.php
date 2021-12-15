@@ -1611,7 +1611,7 @@ class Emulator
         return $vars;
     }
 
-    protected function fork_execution($new_branch_coverage, bool $always_fork = false) {
+    public function fork_execution($new_branch_coverage, bool $always_fork = false) {
         // $this->verbose('forking: '.($this->reanimate ? 'true' : 'false').PHP_EOL);
         // $this->verbose('reanimation transcript: '.sizeof($this->reanimation_transcript).PHP_EOL);
         // file_put_contents('/home/ubuntu/fork_lines.txt', sprintf('%s:%d:%d'.PHP_EOL, $this->current_file, $this->current_line, getmypid()), FILE_APPEND);
