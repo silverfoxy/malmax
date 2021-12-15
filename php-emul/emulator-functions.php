@@ -338,9 +338,9 @@ trait EmulatorFunctions
 		$argValues=$this->core_function_prologue($name,$args); #this has to be before the trace line,
         // If any of the function arguments is Symbolic then return symbol
 
-        // assigning variable_value is only correct for define
-        // not correct in general!
-        if ($name != "define" && $name != "is_file") {
+        // List of builtin functions (mocks) that support symbolic parameters
+        $builtin_functions_symbolic_support = ['define', 'is_file', 'mb_strtoupper', 'mb_strtolower', 'str_replace'];
+        if (!in_array($name, $builtin_functions_symbolic_support)) {
             foreach ($argValues as $arg) {
                 if ($arg instanceof SymbolicVariable) {
                     return new SymbolicVariable($name, $arg->variable_value);
@@ -354,6 +354,7 @@ trait EmulatorFunctions
 
 		array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,"args"=>$argValues));
 		if (isset($this->mock_functions[strtolower($name)])) { //mocked
+            $this->mocked_core_function_args = $args;
             $ret = $this->run_mocked_core_function($name, $argValues);
         }
 		else { //original core function
