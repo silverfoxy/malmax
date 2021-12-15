@@ -340,7 +340,7 @@ trait EmulatorFunctions
 
         // assigning variable_value is only correct for define
         // not correct in general!
-        if ($name != "define") {
+        if ($name != "define" && $name != "is_file") {
             foreach ($argValues as $arg) {
                 if ($arg instanceof SymbolicVariable) {
                     return new SymbolicVariable($name, $arg->variable_value);
