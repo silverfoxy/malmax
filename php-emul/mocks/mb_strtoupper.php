@@ -1,6 +1,7 @@
 <?php
 
 use PHPEmul\SymbolicVariable;
+use PhpParser\Node\Scalar\String_;
 
 function mb_strtoupper_mock($emul, $string, $encoding=null)
 {
@@ -8,6 +9,7 @@ function mb_strtoupper_mock($emul, $string, $encoding=null)
         $result = clone $string;
         $regex_value = $result->variable_value;
         $result->variable_value = mb_strtoupper($regex_value);
+        $result->type = String_::class;
         return $result;
     }
     if ($encoding instanceof SymbolicVariable) {

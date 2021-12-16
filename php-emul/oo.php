@@ -534,8 +534,7 @@ class OOEmulator extends Emulator
 				$classname=$object->classname;
 			elseif (is_object($object))
 				$classname=get_class($object);
-			else
-			{
+			else {
 				$this->error("Call to a member function '{$method_name}()' on a non-object");
 				return null;
 			}

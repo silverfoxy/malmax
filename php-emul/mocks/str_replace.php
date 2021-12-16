@@ -1,6 +1,7 @@
 <?php
 
 use PHPEmul\SymbolicVariable;
+use PhpParser\Node\Scalar\String_;
 
 function str_replace_mock($emul, $search, $replace, $subject, &$count=null)
 {
@@ -12,6 +13,7 @@ function str_replace_mock($emul, $search, $replace, $subject, &$count=null)
         $result = clone $subject;
         $regex_value = $result->variable_value;
         $result->variable_value = str_replace($search, $replace, $regex_value, $count);
+        $result->type = String_::class;
         return $result;
     }
     else {
