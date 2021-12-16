@@ -339,7 +339,7 @@ trait EmulatorFunctions
         // If any of the function arguments is Symbolic then return symbol
 
         // List of builtin functions (mocks) that support symbolic parameters
-        $builtin_functions_symbolic_support = ['define', 'is_file', 'mb_strtoupper', 'mb_strtolower', 'str_replace', 'class_exists'];
+        $builtin_functions_symbolic_support = ['define', 'is_file', 'mb_strtoupper', 'mb_strtolower', 'str_replace', 'strtr', 'class_exists'];
         if (!in_array($name, $builtin_functions_symbolic_support)) {
             foreach ($argValues as $arg) {
                 if ($arg instanceof SymbolicVariable) {

@@ -9,9 +9,10 @@ function str_replace_mock($emul, $search, $replace, $subject, &$count=null)
         return new SymbolicVariable('str_replace w symbolic s/r', '*');
     }
     elseif ($subject instanceof SymbolicVariable) {
-        $regex_value = $subject->variable_value;
-        $subject->variable_value = str_replace($search, $replace, $regex_value, $count);
-        return $subject;
+        $result = clone $subject;
+        $regex_value = $result->variable_value;
+        $result->variable_value = str_replace($search, $replace, $regex_value, $count);
+        return $result;
     }
     else {
         return str_replace($search, $replace, $subject, $count);

@@ -13,6 +13,7 @@ use AnimateDead\Utils;
 use malmax\ExecutionMode;
 use PhpParser\Lexer;
 use PhpParser\Node;
+use PhpParser\NodeAbstract;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
@@ -917,7 +918,7 @@ class Emulator
                     $dbg = 1;
 
                 }
-                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', true);
+                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', NodeAbstract::class, true);
             }
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));

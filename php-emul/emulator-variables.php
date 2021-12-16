@@ -6,6 +6,8 @@ require_once "SymbolicVariable.php";
 
 use AnimateDead\Utils;
 use PhpParser\Node;
+use PhpParser\Node\Scalar\String_;
+
 trait EmulatorVariables
 {
 	/**
@@ -81,12 +83,23 @@ trait EmulatorVariables
     {
 		$r=&$this->symbol_table($node,$key,false);
 		if ($key!==null) {
-            if (is_string($r))
-                return $r[$key];
-            elseif (is_null($r)) //any access on null is null [https://bugs.php.net/bug.php?id=72786]
+            // Check for string indexed access on Symbolic strings
+            if (is_string($r)
+                || $symbolic_str = ($r instanceof SymbolicVariable
+                    && $r->type === String_::class
+                    && is_int($key)
+                    && strlen($r->variable_value) >= $key)) {
+                if ($symbolic_str === true) {
+                    return $r->variable_value[$key];
+                }
+                else {
+                    return $r[$key];
+                }
+            }
+            elseif (is_null($r)) {//any access on null is null [https://bugs.php.net/bug.php?id=72786]
                 return null;
-            elseif (is_array($r)) //support for iterable objects
-            {
+            }
+            elseif (is_array($r)) {//support for iterable objects
                 // If the key is a symbol, return a symbol
                 if ($key instanceof SymbolicVariable) {
                     return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
