@@ -1,6 +1,7 @@
 <?php
 
 use PHPEmul\SymbolicVariable;
+use PhpParser\Node\Expr\Assign;
 
 function file_exists_mock($emul, $filename)
 {
@@ -29,7 +30,11 @@ function file_exists_mock($emul, $filename)
                 }
             }
             $file = array_pop($files);
-            $emul->variable_set($emul->mocked_core_function_args[0]->value, $file);
+            $variable = $emul->mocked_core_function_args[0]->value;
+            if ($variable instanceof Assign) {
+                $variable = $variable->var;
+            }
+            $emul->variable_set($variable, $file);
             return file_exists($file);
         }
     }
