@@ -965,14 +965,10 @@ class Emulator
      */
     function summarize_regex($regex, $prepare_preg_replace=false) {
         $chars = str_split($regex);
-        $summarized_regex = $prepare_preg_replace ? '/' : '';
+        $summarized_regex = '';
         $asterisk_last = false;
         foreach ($chars as $char) {
             if ($char !== '*') {
-                if ($prepare_preg_replace && $char === '\\') {
-                    // \ in preg_replace regex should be replaced with \\\\ to work as intended.
-                    $char = "\\\\\\\\";
-                }
                 $asterisk_last = false;
                 $summarized_regex .= $char;
             }
@@ -986,7 +982,9 @@ class Emulator
             }
             // Skipping duplicate asterisks
         }
-        $summarized_regex .= $prepare_preg_replace ? '/' : '';
+        if ($prepare_preg_replace) {
+            $summarized_regex = '/' . str_replace('\.\*', '.*', preg_quote($summarized_regex)) . '/';
+        }
         return $summarized_regex;
     }
 

@@ -162,9 +162,31 @@ trait OOEmulatorMethodExistence {
      */
 	public function &get_class_object($classname) {
         // Remove starting "\"
-        $classname = strtolower($classname);
-        $classname = substr($classname, 0, 1) === '\\' ? substr($classname, 1, strlen($classname) - 1) : $classname;
-        return $this->classes[$classname];
+        if ($classname instanceof SymbolicVariable) {
+            $regex_value = strtolower($classname->variable_value);
+            $regex_value = substr($regex_value, 0, 1) === '\\' ? substr($regex_value, 1, strlen($regex_value) - 1) : $regex_value;
+            $classes = $this->regex_array_fetch(array_keys($this->classes), $regex_value);
+            if (sizeof($classes) === 0) {
+                return $classes;
+            }
+            else {
+                while (sizeof($classes) > 1) {
+                    $class = array_pop($classes);
+                    $forked_process_info = $this->fork_execution([]);
+                    list($pid, $child_pid) = $forked_process_info;
+                    if ($child_pid === 0) {
+                        return $this->classes[$class];
+                    }
+                }
+                $class = array_pop($classes);
+                return $this->classes[$class];
+            }
+        }
+        else {
+            $classname = strtolower($classname);
+            $classname = substr($classname, 0, 1) === '\\' ? substr($classname, 1, strlen($classname) - 1) : $classname;
+            return $this->classes[$classname];
+        }
     }
 	/**
 	 * Whether or not an object is an instance of a user defined class
