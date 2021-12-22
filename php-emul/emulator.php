@@ -139,6 +139,7 @@ class Emulator
     public array $symbolic_classes = [];
     public array $input_sensitive_symbolic_methods = [];
     public array $function_summaries = [];
+    public $mocked_core_function_args = null;
     public bool $is_child = false;
     public bool $diehard = false;
     public int $process_count = 1;
@@ -902,7 +903,7 @@ class Emulator
                  */
                 if ($key instanceof SymbolicVariable && !$base instanceof SymbolicVariable) {
                     $matched_elements = $this->regex_array_fetch($base, $key->variable_value);
-                    if (sizeof($matched_elements) === sizeof($base)) {
+                    if (is_array($base) && sizeof($matched_elements) === sizeof($base)) {
                         // Regex matched all elements
                         $dbg = 1;
                     }
@@ -983,7 +984,7 @@ class Emulator
             // Skipping duplicate asterisks
         }
         if ($prepare_preg_replace) {
-            $summarized_regex = '/' . str_replace('\.\*', '.*', preg_quote($summarized_regex)) . '/';
+            $summarized_regex = '/^' . str_replace('\.\*', '.*', preg_quote($summarized_regex)) . '$/';
         }
         return $summarized_regex;
     }
@@ -996,6 +997,9 @@ class Emulator
      */
     function regex_array_fetch($array, $regex): array
     {
+        if (!is_array($array)) {
+            return $array;
+        }
         $regex = $this->summarize_regex($regex, true);
         $matched_elements = [];
         foreach ($array as $element) {

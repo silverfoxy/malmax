@@ -3,20 +3,28 @@
 namespace PHPEmul;
 
 use PhpParser\Node;
+use PhpParser\Node\Expr\Variable;
+
 trait OOEmulatorMethodExistence {
 	/**
 	 * Whether or not a user defined classlike (interface, trait, class, etc.) exists
 	 * @param  string $classname 
 	 * @return bool
 	 */
-	public function user_classlike_exists($classname,$type=null)
+	public function user_classlike_exists($classname, $type=null, $concolic=false)
 	{
 	    $class_obj = $this->get_class_object($classname);
+        if ($concolic === true
+            && is_array(end($this->mocked_core_function_args))
+            && end($this->mocked_core_function_args)[0]->value instanceof Variable
+            && isset($class_obj)) {
+            $this->variable_set(end($this->mocked_core_function_args)[0]->value, $class_obj->name);
+        }
 		return isset($class_obj) and ($type===null or $class_obj->type==$type);
 	}
-	public function user_class_exists($classname)
+	public function user_class_exists($classname, $concolic=false)
 	{
-		return $this->user_classlike_exists($classname,"class");
+		return $this->user_classlike_exists($classname,"class", $concolic);
 	}
 	public function user_interface_exists($classname)
 	{
@@ -31,9 +39,9 @@ trait OOEmulatorMethodExistence {
 	 * @param  string $classname 
 	 * @return bool            
 	 */
-	public function class_exists($classname)
+	public function class_exists($classname, $concolic=false)
 	{
-		return class_exists($classname) or $this->user_class_exists($classname);
+		return class_exists($classname) or $this->user_class_exists($classname, $concolic);
 	}
 	public function interface_exists($interface)
 	{

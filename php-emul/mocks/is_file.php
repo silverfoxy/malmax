@@ -11,7 +11,7 @@ function is_file_mock($emul, $filename)
         }
         elseif (sizeof($files) === 1) {
             $file = $files[0];
-            $emul->variable_set($emul->mocked_core_function_args[0]->value, $file);
+            $emul->variable_set(end($emul->mocked_core_function_args)[0]->value, $file);
             return is_file($file);
         }
         else {
@@ -20,12 +20,16 @@ function is_file_mock($emul, $filename)
                 $forked_process_info = $emul->fork_execution([$file => range(1, 100)]);
                 list($pid, $child_pid) = $forked_process_info;
                 if ($child_pid === 0) {
-                    $emul->variable_set($emul->mocked_core_function_args[0]->value, $file);
+                    if (isset(end($emul->mocked_core_function_args)[0]->value)) {
+                        $emul->variable_set(end($emul->mocked_core_function_args)[0]->value, $file);
+                    }
                     return is_file($file);
                 }
             }
             $file = array_pop($files);
-            $emul->variable_set($emul->mocked_core_function_args[0]->value, $file);
+            if (isset(end($emul->mocked_core_function_args)[0]->value)) {
+                $emul->variable_set(end($emul->mocked_core_function_args)[0]->value, $file);
+            }
             return is_file($file);
         }
     }

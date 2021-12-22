@@ -4,6 +4,9 @@ namespace PHPEmul;
 
 use AnimateDead\Utils;
 use PhpParser\Node;
+use PhpParser\Node\Arg;
+use PhpParser\Node\Expr\Assign;
+use PhpParser\Node\Expr\Variable;
 
 trait EmulatorFunctions
 {
@@ -213,7 +216,7 @@ trait EmulatorFunctions
 	{
 		$argValues=[];
 		foreach ($args as &$arg)
-			if (!$arg instanceof Node\Arg)
+			if (!$arg instanceof Arg)
 				$this->error("Argument sent to evaluate_args is not Node\Arg");
 			else
 				$argValues[]=$this->evaluate_expression($arg->value);
@@ -355,8 +358,22 @@ trait EmulatorFunctions
 
 		array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,"args"=>$argValues));
 		if (isset($this->mock_functions[strtolower($name)])) { //mocked
-            $this->mocked_core_function_args = $args;
+            if (is_array($args)) {
+                if ($args[0]->value instanceof Variable
+                    && $this->variable_get($args[0]->value) instanceof SymbolicVariable) {
+                    $this->mocked_core_function_args[] = $args;
+                } elseif ($args[0]->value instanceof Assign) {
+                    $this->mocked_core_function_args[] = [new Arg($args[0]->value->var)];
+                }
+                else {
+                    $this->mocked_core_function_args[] = null;
+                }
+            }
+            else {
+                $this->mocked_core_function_args[] = null;
+            }
             $ret = $this->run_mocked_core_function($name, $argValues);
+            array_pop($this->mocked_core_function_args);
         }
 		else { //original core function
             $ret = $this->run_original_core_function($name, $argValues);

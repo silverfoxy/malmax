@@ -3,6 +3,7 @@
 namespace PHPEmul;
 
 #FIXME: call_user_func* should not be in backtrace
+use AnimateDead\Utils;
 use PhpParser\Node;
 
 class EmulatedException extends \Exception {
@@ -69,6 +70,7 @@ trait EmulatorErrors
 	 */
 	public function exception_handler($e)
 	{
+        Utils::log_error($this->correlation_id, "PHP Fatal error: Uncaught Error: ".$e->getMessage()." in ".$this->current_file.":".$this->current_line.PHP_EOL);
 		if (count($this->exception_handlers))
 		{
 			$this->call_function(end($this->exception_handlers),[$e]);
@@ -77,7 +79,7 @@ trait EmulatorErrors
 		}
 		// return $this->error_handler($e->getCode(), $e->getMessage(), $e->getFile(), $e->getLine());
 		//program output
-		$this->output("PHP Fatal error: Uncaught Error: ".$e->getMessage()," in ",$this->current_file,":",$this->current_line,PHP_EOL);
+		$this->output("PHP Fatal error: Uncaught Error: ".$e->getMessage()." in ".$this->current_file.":".$this->current_line.PHP_EOL);
 		$this->output("Stack trace:\n");
 		$backtrace=$this->print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
 		$this->output($backtrace);
