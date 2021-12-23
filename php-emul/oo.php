@@ -534,8 +534,7 @@ class OOEmulator extends Emulator
 				$classname=$object->classname;
 			elseif (is_object($object))
 				$classname=get_class($object);
-			else
-			{
+			else {
 				$this->error("Call to a member function '{$method_name}()' on a non-object");
 				return null;
 			}
@@ -766,7 +765,7 @@ class OOEmulator extends Emulator
             if ($base instanceof SymbolicVariable)
             {
                 $key = 'unknown';
-                return new SymbolicVariable("PropertyFetch from " + $base->variable_name);
+                return new SymbolicVariable("PropertyFetch from " . $base->variable_name);
             }
 			$var=&$base[$key2];
 			if ($var instanceof EmulatorObject)
@@ -821,6 +820,10 @@ class OOEmulator extends Emulator
 			$classname = $this->real_class($classname);
 			$property_name = $this->name($node->name);
 			$fq_classname = stripos($classname, $this->current_namespace) !== false ? $classname : $this->namespaced_name($classname);
+            // Try to autoload the class if it doesn't exist
+            if (!$this->class_exists($fq_classname)) {
+                $this->spl_autoload_call($fq_classname);
+            }
 			if ($this->ancestry($fq_classname))
 			{
 				foreach($this->ancestry($fq_classname) as $class)

@@ -13,6 +13,7 @@ use AnimateDead\Utils;
 use malmax\ExecutionMode;
 use PhpParser\Lexer;
 use PhpParser\Node;
+use PhpParser\NodeAbstract;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
@@ -131,12 +132,14 @@ class Emulator
     // Total number of forks allowed at any line
     public const FORK_THRESHOLD = 30;
     public array $symbolic_parameters = [];
+    public array $symbolic_parameters_extended_logs_emulation_mode = [];
     public array $symbolic_functions = [];
     public array $input_sensitive_symbolic_functions = [];
     public array $symbolic_methods = [];
     public array $symbolic_classes = [];
     public array $input_sensitive_symbolic_methods = [];
     public array $function_summaries = [];
+    public $mocked_core_function_args = null;
     public bool $is_child = false;
     public bool $diehard = false;
     public int $process_count = 1;
@@ -882,10 +885,41 @@ class Emulator
             // Always return a symbol
             // $this->verbose(print_r($base, true).PHP_EOL);
             // $this->verbose(print_r($key, true).PHP_EOL);
-            if ($key instanceof SymbolicVariable || (!$create && (in_array(strval($key), $this->symbolic_parameters)))
-                || (in_array(strval($key2), $this->symbolic_parameters) && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base)))) {
-                $symbol = new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key));
-                return $symbol;
+            if ($key instanceof SymbolicVariable // Fetching a symbolic key returns a SymbolicVariable
+                || (!$create && (in_array(strval($key), $this->symbolic_parameters))) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
+                || (in_array(strval($key2), $this->symbolic_parameters)
+                    && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode))
+                    || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base))) {
+
+                /*
+                 * If the base is a symbolic parameter (e.g. $_POST)
+                 * and we are not creating an entry,
+                 * and the key doesn't exist in base,
+                 * and we are not in extended_logs_emulation_mode
+                 * return SymbolicVariable
+                 */
+                /*
+                 * For Concrete arrays and Symbolic keys, perform regex matching
+                 */
+                if ($key instanceof SymbolicVariable && !$base instanceof SymbolicVariable) {
+                    $matched_elements = $this->regex_array_fetch($base, $key->variable_value);
+                    if (is_array($base) && sizeof($matched_elements) === sizeof($base)) {
+                        // Regex matched all elements
+                        $dbg = 1;
+                    }
+                    elseif (sizeof($matched_elements) > 0) {
+                        // Regex matched some elements
+                        $dbg = 1;
+                    }
+                    else {
+                        // Regex matched no elements
+                        $key = null;
+                        return $base;
+                    }
+                    $dbg = 1;
+
+                }
+                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', NodeAbstract::class, true);
             }
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));
@@ -924,6 +958,56 @@ class Emulator
             $this->error("Can not find variable reference of this node type.",$node);
             return $this->null_reference($key);
         }
+    }
+    /**
+     * Removes ** with * in regex
+     * @param $regex
+     * @return void
+     */
+    function summarize_regex($regex, $prepare_preg_replace=false) {
+        $chars = str_split($regex);
+        $summarized_regex = '';
+        $asterisk_last = false;
+        foreach ($chars as $char) {
+            if ($char !== '*') {
+                $asterisk_last = false;
+                $summarized_regex .= $char;
+            }
+            else if ($asterisk_last === false) {
+                $asterisk_last = true;
+                // Convert * to .* for preg_replace
+                if ($prepare_preg_replace === true) {
+                    $summarized_regex .= '.';
+                }
+                $summarized_regex .= $char;
+            }
+            // Skipping duplicate asterisks
+        }
+        if ($prepare_preg_replace) {
+            $summarized_regex = '/^' . str_replace('\.\*', '.*', preg_quote($summarized_regex)) . '$/';
+        }
+        return $summarized_regex;
+    }
+
+    /**
+     * Returns the elements in $array that match the $regex
+     * @param $array
+     * @param $regex
+     * @return array
+     */
+    function regex_array_fetch($array, $regex): array
+    {
+        if (!is_array($array)) {
+            return $array;
+        }
+        $regex = $this->summarize_regex($regex, true);
+        $matched_elements = [];
+        foreach ($array as $element) {
+            if (is_string($element) && preg_match($regex, $element) === 1) {
+                $matched_elements[] = $element;
+            }
+        }
+        return $matched_elements;
     }
     /**
      * Resolves symbol name
@@ -1600,7 +1684,7 @@ class Emulator
         return $vars;
     }
 
-    protected function fork_execution($new_branch_coverage, bool $always_fork = false) {
+    public function fork_execution($new_branch_coverage, bool $always_fork = false) {
         // $this->verbose('forking: '.($this->reanimate ? 'true' : 'false').PHP_EOL);
         // $this->verbose('reanimation transcript: '.sizeof($this->reanimation_transcript).PHP_EOL);
         // file_put_contents('/home/ubuntu/fork_lines.txt', sprintf('%s:%d:%d'.PHP_EOL, $this->current_file, $this->current_line, getmypid()), FILE_APPEND);
@@ -1684,7 +1768,7 @@ class Emulator
             $this->verbose(sprintf('Adding reanimation task at %s:%d', $this->current_file, $this->current_line).PHP_EOL);
             // $this->verbose(print_r($this->full_reanimation_transcript, true).PHP_EOL);
             // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
-            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id, $new_branch_coverage);
+            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id, $this->extended_logs_emulation_mode, $new_branch_coverage);
             return array($pid, $child_pid);
         }
     }

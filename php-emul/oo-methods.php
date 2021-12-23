@@ -3,20 +3,28 @@
 namespace PHPEmul;
 
 use PhpParser\Node;
+use PhpParser\Node\Expr\Variable;
+
 trait OOEmulatorMethodExistence {
 	/**
 	 * Whether or not a user defined classlike (interface, trait, class, etc.) exists
 	 * @param  string $classname 
 	 * @return bool
 	 */
-	public function user_classlike_exists($classname,$type=null)
+	public function user_classlike_exists($classname, $type=null, $concolic=false)
 	{
 	    $class_obj = $this->get_class_object($classname);
+        if ($concolic === true
+            && is_array(end($this->mocked_core_function_args))
+            && end($this->mocked_core_function_args)[0]->value instanceof Variable
+            && isset($class_obj)) {
+            $this->variable_set(end($this->mocked_core_function_args)[0]->value, $class_obj->name);
+        }
 		return isset($class_obj) and ($type===null or $class_obj->type==$type);
 	}
-	public function user_class_exists($classname)
+	public function user_class_exists($classname, $concolic=false)
 	{
-		return $this->user_classlike_exists($classname,"class");
+		return $this->user_classlike_exists($classname,"class", $concolic);
 	}
 	public function user_interface_exists($classname)
 	{
@@ -31,9 +39,9 @@ trait OOEmulatorMethodExistence {
 	 * @param  string $classname 
 	 * @return bool            
 	 */
-	public function class_exists($classname)
+	public function class_exists($classname, $concolic=false)
 	{
-		return class_exists($classname) or $this->user_class_exists($classname);
+		return class_exists($classname) or $this->user_class_exists($classname, $concolic);
 	}
 	public function interface_exists($interface)
 	{
@@ -162,9 +170,31 @@ trait OOEmulatorMethodExistence {
      */
 	public function &get_class_object($classname) {
         // Remove starting "\"
-        $classname = strtolower($classname);
-        $classname = substr($classname, 0, 1) === '\\' ? substr($classname, 1, strlen($classname) - 1) : $classname;
-        return $this->classes[$classname];
+        if ($classname instanceof SymbolicVariable) {
+            $regex_value = strtolower($classname->variable_value);
+            $regex_value = substr($regex_value, 0, 1) === '\\' ? substr($regex_value, 1, strlen($regex_value) - 1) : $regex_value;
+            $classes = $this->regex_array_fetch(array_keys($this->classes), $regex_value);
+            if (sizeof($classes) === 0) {
+                return $classes;
+            }
+            else {
+                while (sizeof($classes) > 1) {
+                    $class = array_pop($classes);
+                    $forked_process_info = $this->fork_execution([]);
+                    list($pid, $child_pid) = $forked_process_info;
+                    if ($child_pid === 0) {
+                        return $this->classes[$class];
+                    }
+                }
+                $class = array_pop($classes);
+                return $this->classes[$class];
+            }
+        }
+        else {
+            $classname = strtolower($classname);
+            $classname = substr($classname, 0, 1) === '\\' ? substr($classname, 1, strlen($classname) - 1) : $classname;
+            return $this->classes[$classname];
+        }
     }
 	/**
 	 * Whether or not an object is an instance of a user defined class

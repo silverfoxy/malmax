@@ -4,6 +4,7 @@ namespace PHPEmul;
 
 use malmax\ExecutionMode;
 use PhpParser\Node;
+use PhpParser\Node\Scalar\String_;
 
 class EmulatorClosure {
     public string $name;
@@ -501,12 +502,12 @@ trait EmulatorExpression {
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
 			    if ($l instanceof  SymbolicVariable && $r instanceof SymbolicVariable) {
-			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value);
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value, String_::class);
                 }
 			    if ($l instanceof SymbolicVariable) {
-			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r);
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r, String_::class);
                 } else if ($r instanceof  SymbolicVariable) {
-                    return new SymbolicVariable("symbolic concat", $l . $r->variable_value);
+                    return new SymbolicVariable("symbolic concat", $l . $r->variable_value, String_::class);
                 }
 
                 return $l . $r;
@@ -518,7 +519,7 @@ trait EmulatorExpression {
 		}
 		elseif ($node instanceof Node\Scalar)
 		{
-			if ($node instanceof Node\Scalar\String_)
+			if ($node instanceof String_)
 				return $node->value;
 			elseif ($node instanceof Node\Scalar\EncapsedStringPart)
                 return $node->value;

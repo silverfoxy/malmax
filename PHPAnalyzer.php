@@ -72,6 +72,15 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 
 	public $declared_statements=[];
 
+    /**
+     * Tracks whether extended logs are provided to the emulation
+     * Extended logs include the keys for $_POST, $_COOKIE, and $_SESSION variables but not the values.
+     * In this mode, only these elements are marked as symbolic.
+     * This flag is used throughout the code to change the behavior of the emulator based on this information.
+     * @var bool
+     */
+    public $extended_logs_emulation_mode = false;
+
 	/**
 	 * Whether to isolate every off-branch from its parent or just run
 	 * the entire off-branches in one isolation.
@@ -422,7 +431,6 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 		if ($node instanceof Node\Expr\UnaryMinus
 			or $node instanceof Node\Expr\BitwiseNot)
 			return $this->is_statically_resolvable($node->expr);
-		var_dump($node);
 		return false;
 
 	}

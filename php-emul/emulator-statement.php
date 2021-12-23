@@ -4,6 +4,7 @@ namespace PHPEmul;
 
 #TODO: PhpParser\Node\Stmt\StaticVar vs PhpParser\Node\Stmt\Static_
 
+use AnimateDead\Utils;
 use PhpParser\Node;
 /**
  * Runs a single statement in the emulator
@@ -33,7 +34,8 @@ trait EmulatorStatement
 		}
 		if ($i>$this->infinite_loop)
 		{
-			$this->error("Infinite loop");
+			$this->warning("Infinite loop");
+            Utils::log_error($this->correlation_id, sprintf('Infinite loop in %s: %d', $this->current_file, $this->current_line));
 			return true; 
 		}
 		return false;
