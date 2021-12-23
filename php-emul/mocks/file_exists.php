@@ -16,7 +16,9 @@ function file_exists_mock($emul, $filename)
         }
         elseif (sizeof($files) === 1) {
             $file = $files[0];
-            $emul->variable_set(end($emul->mocked_core_function_args)[0]->value, $file);
+            if (isset(end($emul->mocked_core_function_args)[0]->value)) {
+                $emul->variable_set(end($emul->mocked_core_function_args)[0]->value, $file);
+            }
             return file_exists($file);
         }
         else {
@@ -25,7 +27,9 @@ function file_exists_mock($emul, $filename)
                 $forked_process_info = $emul->fork_execution([$file => range(1, 100)]);
                 list($pid, $child_pid) = $forked_process_info;
                 if ($child_pid === 0) {
-                    $emul->variable_set(end($emul->mocked_core_function_args)[0]->value, $file);
+                    if (isset(end($emul->mocked_core_function_args)[0]->value)) {
+                        $emul->variable_set(end($emul->mocked_core_function_args)[0]->value, $file);
+                    }
                     return file_exists($file);
                 }
             }
