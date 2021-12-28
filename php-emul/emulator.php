@@ -409,9 +409,9 @@ class Emulator
 
     public function get_real_path($file_name, $is_dir=false) {
         if (substr($file_name, 0, 1) !== '/' && ($is_dir || !file_exists($file_name))) {
-            $file_name = realpath($this->main_directory) . '/' . $file_name;
+            $file_name = $this->main_directory . '/' . $file_name;
         }
-        return $file_name;
+        return realpath($file_name);
 
     }
 
@@ -568,23 +568,23 @@ class Emulator
 
             if ($k === '_SESSION') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable();
+                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
             else if ($k === '_COOKIE') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable();
+                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
             else if ($k === '_POST') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable();
+                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
             else if ($k === '_REQUEST') {
                 foreach (array_keys($v) as $key) {
                     if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_SESSION']) || array_key_exists($key, $init_environ['_COOKIE'])) {
-                        $v[$key] = new SymbolicVariable();
+                        $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                     }
                 }
             }
@@ -886,10 +886,11 @@ class Emulator
             // $this->verbose(print_r($base, true).PHP_EOL);
             // $this->verbose(print_r($key, true).PHP_EOL);
             if ($key instanceof SymbolicVariable // Fetching a symbolic key returns a SymbolicVariable
-                || (!$create && (in_array(strval($key), $this->symbolic_parameters))) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
-                || (in_array(strval($key2), $this->symbolic_parameters)
-                    && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode))
-                    || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base))) {
+                || !$create &&
+                            ((in_array(strval($key), $this->symbolic_parameters)) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
+                            || (in_array(strval($key2), $this->symbolic_parameters)
+                                && (!$this->immutable_symbolic_variables && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode))
+                            || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base)))) {
 
                 /*
                  * If the base is a symbolic parameter (e.g. $_POST)
