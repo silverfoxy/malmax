@@ -728,7 +728,9 @@ trait EmulatorExpression {
                      * "get_candidate_files"s implementation
                      */
                     if ($type%2==0) //once
-                        if (isset($this->included_files[$realfile])) return true;
+                        if (isset($this->included_files[$realfile])) {
+                            return true;
+                        }
                     if (!file_exists($realfile) or !is_file($realfile)) {
                         if ($type <= 2) { // include
                             $this->warning("{$name}({$file}): failed to open stream: No such file or directory");

@@ -442,7 +442,7 @@ class Emulator
     {
         // If the path is absolute (/ or \ or relative . or ..) include_path is ignored
         if (substr($file_name, 0, 1) === '/' || substr($file_name, 0, 1) === '\\' || substr($file_name, 0, 1) === '.') {
-            return $file_name;
+            return realpath($file_name);
         } else {
             // Resolve the file based on include_path
             $include_path = $this->get_include_path();
@@ -890,7 +890,7 @@ class Emulator
                             ((in_array(strval($key), $this->symbolic_parameters)) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
                             || (in_array(strval($key2), $this->symbolic_parameters)
                                 && (!$this->immutable_symbolic_variables && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode))
-                            || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base)))) {
+                            || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base) && $base[$key] instanceof SymbolicVariable))) {
 
                 /*
                  * If the base is a symbolic parameter (e.g. $_POST)
