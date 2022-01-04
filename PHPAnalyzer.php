@@ -164,12 +164,16 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 		else
 			$ref[$last_part]+=$number;
 	}
-
+    // Rasoul
+    public function get_current_this() {
+        return $this->current_this;
+    }
 	/**
 	 * Default emulator exception handler
 	 * @param  Exception $e 
 	 * @return        [description]
 	 */
+
 	public function exception_handler($e)
 	{
 		if (count($this->exception_handlers))
