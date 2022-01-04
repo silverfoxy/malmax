@@ -345,6 +345,27 @@ trait EmulatorFunctions
          * For the rest of builtin functions, we just return a Symbol
          * If any parameter is symbolic
          */
+        // Rasoul
+        if ($name == "vsprintf"){
+            /*
+                * if the arg is an array of arguments passed to a function
+                * such as vsprintf in WordPress:wp-db/1294
+                * probably need to make sure doesn't affect other functions
+                */
+
+            foreach ($argValues as $arg){
+                if (is_array($arg))
+                {
+                    foreach ($arg as $subarg) {
+                        if ($subarg instanceof SymbolicVariable) {
+                            return new SymbolicVariable($name, $subarg->variable_value);
+                        }
+                    }
+                } elseif ($arg instanceof SymbolicVariable) {
+                    return new SymbolicVariable($name, $arg->variable_value);
+                }
+            }
+        }
         if ($name !== 'define' &&
             $name !== 'in_array') {
             foreach ($argValues as $arg) {
@@ -353,6 +374,7 @@ trait EmulatorFunctions
                 }
             }
         }
+
 
 		if ($this->terminated) {
 		    return null;
