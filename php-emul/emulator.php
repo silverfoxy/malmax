@@ -571,32 +571,43 @@ class Emulator
                     $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
-            else if ($k === '_COOKIE') {
+            elseif ($k === '_COOKIE') {
                 foreach (array_keys($v) as $key) {
                     $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
-            else if ($k === '_POST') {
+            elseif ($k === '_POST') {
                 foreach (array_keys($v) as $key) {
                     $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
-            else if ($k === '_REQUEST') {
+            elseif ($k === '_REQUEST') {
                 foreach (array_keys($v) as $key) {
                     if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_SESSION']) || array_key_exists($key, $init_environ['_COOKIE'])) {
                         $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                     }
                 }
             }
+            elseif ($k === '_FILES') {
+                foreach (array_keys($v) as $key) {
+                    $v[$key] = ['name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                        'type' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                        'tmp_name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                        'error' => 0,
+                        'size' => new SymbolicVariable('name', '*', Node\Scalar\LNumber::class, true)];
+                }
+            }
+
             $this->variables[$k] = $v;
         }
-        $this->variables['GLOBALS']=&$this->variables; //as done by PHP itself
-        if ($this->auto_mock)
-            foreach(get_defined_functions()['internal'] as $function) //get_defined_functions gives 'internal' and 'user' subarrays.
+        $this->variables['GLOBALS'] = &$this->variables; //as done by PHP itself
+        if ($this->auto_mock) {
+            foreach (get_defined_functions()['internal'] as $function) //get_defined_functions gives 'internal' and 'user' subarrays.
             {
-                if (function_exists($function."_mock"))
-                    $this->mock_functions[strtolower($function)]=$function."_mock";
+                if (function_exists($function . "_mock"))
+                    $this->mock_functions[strtolower($function)] = $function . "_mock";
             }
+        }
         // Set the predefined constants
         if (isset($predefined_constants)) {
             $this->constants = $predefined_constants;
