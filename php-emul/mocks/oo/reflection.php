@@ -50,7 +50,7 @@ class ReflectionMethod_mock extends BaseReflection_mock
 	function _getParameters() {
 	    $params = [];
 	    foreach ($this->method()->params as $param) {
-	        $params[] = new ReflectionParameter_mock($this->class, $this->method, $param);
+	        $params[] = new ReflectionParameter_mock($param->type, $this->method, $param);
         }
 	    return $params;
     }
@@ -94,7 +94,7 @@ class ReflectionParameter_mock extends BaseReflection_mock
 
     public function __construct($class, $method, $param) {
         $this->name = $this->emul()->get_variableـname($param->var);
-        $this->class = new ReflectionClass_mock($class);
+        $this->class = $class === null ? null : new ReflectionClass_mock($class);
     }
 
     public function getName() {
