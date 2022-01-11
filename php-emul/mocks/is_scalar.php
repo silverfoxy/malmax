@@ -6,7 +6,8 @@ use PhpParser\Node\Scalar;
 function is_scalar_mock($emul, $value)
 {
     if ($value instanceof SymbolicVariable) {
-        if ($value->type === Scalar::class) {
+        if (strpos($value->type, Scalar::class) !== false) {
+            // strpos allows for inheritance (Scalar\String_ vs Scalar).
             return true;
         }
         else {
