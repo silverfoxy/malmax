@@ -822,7 +822,8 @@ class Emulator
             $key=array_pop($indexes);
             if (is_string($base) and empty($indexes) and is_int($key)) //string arraydimfetch access
                 return $base; //already done
-
+            if ($base === "" && in_array($key2, $this->symbolic_parameters))
+                return new SymbolicVariable();
             if (is_scalar($base)) //arraydimfetch on scalar returns null
                 return $this->null_reference($key);
 
