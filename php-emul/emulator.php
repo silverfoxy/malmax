@@ -409,9 +409,9 @@ class Emulator
 
     public function get_real_path($file_name, $is_dir=false) {
         if (substr($file_name, 0, 1) !== '/' && ($is_dir || !file_exists($file_name))) {
-            $file_name = realpath($this->main_directory) . '/' . $file_name;
+            $file_name = $this->main_directory . '/' . $file_name;
         }
-        return $file_name;
+        return realpath($file_name);
 
     }
 
@@ -442,7 +442,7 @@ class Emulator
     {
         // If the path is absolute (/ or \ or relative . or ..) include_path is ignored
         if (substr($file_name, 0, 1) === '/' || substr($file_name, 0, 1) === '\\' || substr($file_name, 0, 1) === '.') {
-            return $file_name;
+            return realpath($file_name);
         } else {
             // Resolve the file based on include_path
             $include_path = $this->get_include_path();
@@ -568,35 +568,46 @@ class Emulator
 
             if ($k === '_SESSION') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable();
+                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
-            else if ($k === '_COOKIE') {
+            elseif ($k === '_COOKIE') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable();
+                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
-            else if ($k === '_POST') {
+            elseif ($k === '_POST') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable();
+                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
             }
-            else if ($k === '_REQUEST') {
+            elseif ($k === '_REQUEST') {
                 foreach (array_keys($v) as $key) {
                     if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_SESSION']) || array_key_exists($key, $init_environ['_COOKIE'])) {
-                        $v[$key] = new SymbolicVariable();
+                        $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                     }
                 }
             }
+            elseif ($k === '_FILES') {
+                foreach (array_keys($v) as $key) {
+                    $v[$key] = ['name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                        'type' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                        'tmp_name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                        'error' => 0,
+                        'size' => new SymbolicVariable('name', '*', Node\Scalar\LNumber::class, true)];
+                }
+            }
+
             $this->variables[$k] = $v;
         }
-        $this->variables['GLOBALS']=&$this->variables; //as done by PHP itself
-        if ($this->auto_mock)
-            foreach(get_defined_functions()['internal'] as $function) //get_defined_functions gives 'internal' and 'user' subarrays.
+        $this->variables['GLOBALS'] = &$this->variables; //as done by PHP itself
+        if ($this->auto_mock) {
+            foreach (get_defined_functions()['internal'] as $function) //get_defined_functions gives 'internal' and 'user' subarrays.
             {
-                if (function_exists($function."_mock"))
-                    $this->mock_functions[strtolower($function)]=$function."_mock";
+                if (function_exists($function . "_mock"))
+                    $this->mock_functions[strtolower($function)] = $function . "_mock";
             }
+        }
         // Set the predefined constants
         if (isset($predefined_constants)) {
             $this->constants = $predefined_constants;
@@ -886,10 +897,11 @@ class Emulator
             // $this->verbose(print_r($base, true).PHP_EOL);
             // $this->verbose(print_r($key, true).PHP_EOL);
             if ($key instanceof SymbolicVariable // Fetching a symbolic key returns a SymbolicVariable
-                || (!$create && (in_array(strval($key), $this->symbolic_parameters))) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
-                || (in_array(strval($key2), $this->symbolic_parameters)
-                    && (!$this->immutable_symbolic_variables && !$create && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode))
-                    || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base))) {
+                || !$create &&
+                            ((in_array(strval($key), $this->symbolic_parameters)) // Not in create mode, and fetching a symbolic parameter returns a SymbolicVariable
+                            || (in_array(strval($key2), $this->symbolic_parameters)
+                                && (!$this->immutable_symbolic_variables && !array_key_exists($key, $base) && !$this->extended_logs_emulation_mode))
+                            || ($this->extended_logs_emulation_mode && in_array($key2, $this->symbolic_parameters_extended_logs_emulation_mode) && array_key_exists($key, $base) && $base[$key] instanceof SymbolicVariable))) {
 
                 /*
                  * If the base is a symbolic parameter (e.g. $_POST)
