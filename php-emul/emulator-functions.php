@@ -343,10 +343,7 @@ trait EmulatorFunctions
 		$argValues=$this->core_function_prologue($name,$args); #this has to be before the trace line,
         // If any of the function arguments is Symbolic then return symbol
 
-        // List of builtin functions (mocks) that support symbolic parameters
-        $builtin_functions_symbolic_support = ['define', 'is_file', 'file_exists', 'mb_strtoupper', 'mb_strtolower',
-                                               'str_replace', 'strtr', 'strrpos', 'strpos', 'substr', 'class_exists'];
-        if (!in_array($name, $builtin_functions_symbolic_support)) {
+        if (empty($this->mock_functions[strtolower($name)])) {
             foreach ($argValues as $arg) {
                 if ($arg instanceof SymbolicVariable) {
                     return new SymbolicVariable($name, $arg->variable_value);

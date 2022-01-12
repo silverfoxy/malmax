@@ -17,6 +17,7 @@ use PhpParser\NodeAbstract;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
+use PhpParser\Node\Scalar;
 
 require_once "emulator-variables.php";
 require_once "emulator-functions.php";
@@ -573,17 +574,20 @@ class Emulator
             }
             elseif ($k === '_COOKIE') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
+                    $v[$key] = new SymbolicVariable('', '*', Node\Scalar\String_::class, true);
                 }
             }
             elseif ($k === '_POST') {
                 foreach (array_keys($v) as $key) {
-                    $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
+                    $v[$key] = new SymbolicVariable('', '*', Node\Scalar\String_::class, true);
                 }
             }
             elseif ($k === '_REQUEST') {
                 foreach (array_keys($v) as $key) {
-                    if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_SESSION']) || array_key_exists($key, $init_environ['_COOKIE'])) {
+                    if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_COOKIE'])) {
+                        $v[$key] = new SymbolicVariable('', '*', Node\Scalar\String_::class, true);
+                    }
+                    elseif (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_SESSION'])) {
                         $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
                     }
                 }
@@ -932,7 +936,7 @@ class Emulator
                     $dbg = 1;
 
                 }
-                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', NodeAbstract::class, true);
+                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', Scalar::class, true);
             }
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));
