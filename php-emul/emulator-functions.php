@@ -318,7 +318,7 @@ trait EmulatorFunctions
 	}
     public function userfunc_err_handler($errno, $errstr, $errfile, $errline)
     {
-        if($this->error_suppression===0){
+        if ($this->error_suppression === 0) {
             $this->verbose(strcolor(sprintf('[%d] Error at %s:%d Triggered at %s:%d: %s'.PHP_EOL, getmypid(), $this->current_file, $this->current_line, $errfile, $errline, $errstr), 'red'));
             $this->verbose(print_r($this->arg_values, true));
         }

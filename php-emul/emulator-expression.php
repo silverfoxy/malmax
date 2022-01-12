@@ -399,9 +399,9 @@ trait EmulatorExpression {
                 if ($l<$r) {
                     return -1;
                 }
-		elseif($l>$r) {
-		    return 1;
-		}
+                elseif ($l>$r) {
+                    return 1;
+                }
                 return 0;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
