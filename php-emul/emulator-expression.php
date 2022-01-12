@@ -4,6 +4,7 @@ namespace PHPEmul;
 
 use malmax\ExecutionMode;
 use PhpParser\Node;
+use PhpParser\Node\Scalar\String_;
 
 class EmulatorClosure {
     public string $name;
@@ -223,10 +224,12 @@ trait EmulatorExpression {
 		elseif ($node instanceof Node\Expr\BooleanNot) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
-                return new SymbolicVariable();
+                $result = clone $expr;
+                $result->variable_name = sprintf('not(%s)', $result->variable_name);
+                return $result;
             }
             if ($expr instanceof \stdClass) {
-                return !$expr;
+                return false;
             } else {
                 return !$this->evaluate_expression($expr, $is_symbolic);            }
 
@@ -234,7 +237,9 @@ trait EmulatorExpression {
 		elseif ($node instanceof Node\Expr\BitwiseNot) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
-                return new SymbolicVariable();
+                $result = clone $expr;
+                $result->variable_name = sprintf('not(%s)', $result->variable_name);
+                return $result;
             }
             return ~$this->evaluate_expression($expr, $is_symbolic);
         }
@@ -242,14 +247,18 @@ trait EmulatorExpression {
 		elseif ($node instanceof Node\Expr\UnaryMinus) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
-                return new SymbolicVariable();
+                $result = clone $expr;
+                $result->variable_name = sprintf('-(%s)', $result->variable_name);
+                return $result;
             }
             return -$this->evaluate_expression($expr, $is_symbolic);
         }
 		elseif ($node instanceof Node\Expr\UnaryPlus) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
-                return new SymbolicVariable();
+                $result = clone $expr;
+                $result->variable_name = sprintf('+(%s)', $result->variable_name);
+                return $result;
             }
             return +$this->evaluate_expression($expr, $is_symbolic);
         }
@@ -314,31 +323,31 @@ trait EmulatorExpression {
             }
 			if ($node instanceof Node\Expr\BinaryOp\Plus) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l+$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Div) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l/$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Minus) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l-$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Mul) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l*$r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Mod) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l % $r;
             }
@@ -346,49 +355,49 @@ trait EmulatorExpression {
 			// 	return $this->evaluate_expression($node->left)**$this->evaluate_expression($node->right);
 			elseif ($node instanceof Node\Expr\BinaryOp\Identical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l === $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotIdentical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l !== $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Equal) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l == $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l != $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Smaller) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l < $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\SmallerOrEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l <= $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Greater) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l > $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\GreaterOrEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l >= $r;
             }
@@ -407,8 +416,8 @@ trait EmulatorExpression {
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
 			    if ($l) {
 			        $r = $this->evaluate_expression($node->right, $is_symbolic);
-			        if ($is_symbolic) {
-			            return new SymbolicVariable();
+			        if ($is_symbolic || $r instanceof SymbolicVariable) {
+                        return clone $r;
                     }
                     return $l and $r;
                 }
@@ -437,8 +446,8 @@ trait EmulatorExpression {
                 }
                 else {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
-                    if ($is_symbolic) {
-                        return new SymbolicVariable();
+                    if ($is_symbolic || $r instanceof SymbolicVariable) {
+                        return clone $r;
                     }
                     return $l or $r;
                 }
@@ -453,10 +462,10 @@ trait EmulatorExpression {
 			    else {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
                     if ($r instanceof SymbolicVariable) {
-                        return new SymbolicVariable();
+                        return clone $r;
                     }
                     elseif($l instanceof SymbolicVariable) {
-                        return new SymbolicVariable();
+                        return clone $l;
                     }
                     else {
                         return $l || $r;
@@ -467,13 +476,13 @@ trait EmulatorExpression {
 			    if ($l) {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
                     if ($r instanceof SymbolicVariable) {
-                        return new SymbolicVariable();
+                        return clone $r;
                     }
                     elseif ($r == false) {
                         return false;
                     }
                     elseif ($l instanceof SymbolicVariable) {
-                        return new SymbolicVariable();
+                        return clone $l;
                     }
                     return true;
                 }
@@ -483,42 +492,42 @@ trait EmulatorExpression {
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseAnd) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l & $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseOr) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l | $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseXor) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l ^ $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\ShiftLeft) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l << $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\ShiftRight) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                    return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l >> $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
 			    if ($l instanceof  SymbolicVariable && $r instanceof SymbolicVariable) {
-			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value);
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value, String_::class);
                 }
 			    if ($l instanceof SymbolicVariable) {
-			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r);
+			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r, String_::class);
                 } else if ($r instanceof  SymbolicVariable) {
-                    return new SymbolicVariable("symbolic concat", $l . $r->variable_value);
+                    return new SymbolicVariable("symbolic concat", $l . $r->variable_value, String_::class);
                 }
 
                 return $l . $r;
@@ -530,7 +539,7 @@ trait EmulatorExpression {
 		}
 		elseif ($node instanceof Node\Scalar)
 		{
-			if ($node instanceof Node\Scalar\String_)
+			if ($node instanceof String_)
 				return $node->value;
 			elseif ($node instanceof Node\Scalar\EncapsedStringPart)
                 return $node->value;
@@ -622,7 +631,7 @@ trait EmulatorExpression {
 		    $expr_value = $this->evaluate_expression($node->expr, $is_symbolic);
 		    if ($expr_value instanceof SymbolicVariable) {
                 $this->error_restore();
-		        return new SymbolicVariable();
+		        return !$expr_value->isset;
             }
 			//return true if not isset, or if false. only supports variables, and not expressions
             $res = false;
@@ -731,7 +740,9 @@ trait EmulatorExpression {
                      * "get_candidate_files"s implementation
                      */
                     if ($type%2==0) //once
-                        if (isset($this->included_files[$realfile])) return true;
+                        if (isset($this->included_files[$realfile])) {
+                            return true;
+                        }
                     if (!file_exists($realfile) or !is_file($realfile)) {
                         if ($type <= 2) { // include
                             $this->warning("{$name}({$file}): failed to open stream: No such file or directory");
