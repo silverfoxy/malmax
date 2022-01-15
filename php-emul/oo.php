@@ -994,7 +994,7 @@ class OOEmulator extends Emulator
                     $class = $var->property_class[$property_name] ?? $var->classname;
 
 					return ($visibility==EmulatorObject::Visibility_Public
-						or ($visibility==EmulatorObject::Visibility_Protected and ($this->is_a((string)$this->current_self, $class,true) or $this->is_a( $class,(string)$this->current_self,true)) )
+						or ($visibility==EmulatorObject::Visibility_Protected and ($this->is_a($this->current_this->classname ?? $this->current_class, $class,true)))
 						or ($visibility==EmulatorObject::Visibility_Private and strtolower($this->current_this->classname ?? $this->current_class)==strtolower($class) )
 							);
 				}
@@ -1056,7 +1056,8 @@ class OOEmulator extends Emulator
 		if ($node instanceof Node\Expr\PropertyFetch)// and !parent::variable_isset($node))
 		{
 		    if ($magic === 'get' || $magic === 'set') { // __get and __set are only used when the property is protected/private
-                if ($this->is_visible($node)) { // Do not invoke __get or __set on public class properties
+                $visibile = $this->is_visible($node);
+                if ($visibile === true) { // Do not invoke __get or __set on public class properties
                     return false;
                 }
             }
