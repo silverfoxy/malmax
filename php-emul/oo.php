@@ -992,10 +992,11 @@ class OOEmulator extends Emulator
 						$visibility=EmulatorObject::Visibility_Public;
 
                     $class = $var->property_class[$property_name] ?? $var->classname;
+                    $current_class = $this->current_this->classname ?? $this->current_class;
 
 					return ($visibility==EmulatorObject::Visibility_Public
-						or ($visibility==EmulatorObject::Visibility_Protected and ($this->is_a($this->current_this->classname ?? $this->current_class, $class,true)))
-						or ($visibility==EmulatorObject::Visibility_Private and strtolower($this->current_this->classname ?? $this->current_class)==strtolower($class) )
+						   || ($visibility==EmulatorObject::Visibility_Protected && $current_class !== null && ($this->is_a($current_class, $class,true)))
+						   || ($visibility==EmulatorObject::Visibility_Private && $current_class !== null && strtolower($current_class) == strtolower($class) )
 							);
 				}
 				elseif ($var->hasProperty($property_name)) {

@@ -653,13 +653,12 @@ trait EmulatorExpression {
 			$result_is_symbolic = false;
 			foreach ($node->vars as $var)
 			{
-				// if (!$this->variable_isset($var) or $this->evaluate_expression($var)===null)
 				$var_isset = $this->variable_isset($var);
                 if ($var_isset instanceof SymbolicVariable) {
+                    $res = $var_isset->isset;
                     $result_is_symbolic = true;
                 }
 				elseif (!$var_isset)
-				// if (!$this->variable_isset($var) or self::variable_get($var)===null)
 				{
 					$res=false;
 					break;
@@ -668,7 +667,7 @@ trait EmulatorExpression {
 			if ($res && $result_is_symbolic) {
 			    // If all the concolic variables are set, and we also have a Symbolic variable, return Symbolic variable
                 $is_symbolic = true;
-                return new SymbolicVariable();
+                return $res;
             }
             return $res;
 		}
