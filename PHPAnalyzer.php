@@ -847,7 +847,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 // }
                 // if ($this->evaluate_expression())
 				$selected_branch_statements = null;
-				$covered_one_branch = false;
+				$break = false;
 				// Check if any of the branches are concrete
                 $have_symbolic_conditions = false;
                 $is_symbolic = false;
@@ -858,7 +858,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 if ($main_branch_condition && !$main_branch_condition instanceof SymbolicVariable) {
                     // Condition of this branch is concretely satisfied
                     // $this->verbose('Not forking'.PHP_EOL);
-                    $covered_one_branch = true;
+                    $break = true;
                     $selected_branch_statements = $node->stmts;
                     $condition = $this->print_ast($node->cond);
                 }
@@ -871,7 +871,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             // $this->terminate_early = true;
                             // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
                             $selected_branch_statements = $node->stmts;
-                            $covered_one_branch = true;
+                            $break = true;
                         }
                     } else {
                         // Terminated
@@ -880,7 +880,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 }
                 $branch_conditions = [];
 
-                if (!$covered_one_branch && is_array($node->elseifs) && sizeof($node->elseifs) > 0) {
+                if (!$break && is_array($node->elseifs) && sizeof($node->elseifs) > 0) {
                     // Main branch is not satisfied, now checking the elseif branches
                     foreach ($node->elseifs as $elseif) {
                         $this->current_line = $node->getLine();
@@ -889,7 +889,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         $branch_conditions[$this->statement_id($elseif)] = $branch_condition;
                         if ($branch_condition && !$branch_condition instanceof SymbolicVariable) {
                             // Condition of this branch is concretely satisfied
-                            $covered_one_branch=true;
+                            $break=true;
                             $selected_branch_statements = $elseif->stmts;
                             $condition = $this->print_ast($elseif->cond);
                             break;
@@ -908,7 +908,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                         $condition = 'else';
                                     }
                                     $selected_branch_statements = $elseif->stmts;
-                                    $covered_one_branch = true;
+                                    $break = true;
                                     break;
                                 }
                             } else {
@@ -918,18 +918,18 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         }
                     }
                 }
-                if (!$covered_one_branch) {
+                if (!$break) {
                     // None of the If/Elseif conditions were satisfied
                     // Therefore we run Else
                     if (isset($node->else)) {
                         // run else
-                        $covered_one_branch = true;
+                        $break = true;
                         $selected_branch_statements = $node->else->stmts;
                         $condition="not ".$this->print_ast($node->cond);
                     }
                     else {
                         // Nothing to do
-                        $covered_one_branch = true;
+                        $break = true;
                         $condition = '';
                     }
                 }
@@ -976,16 +976,11 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 			}
 			if ($this->concolic)
 			{
-				$covered_one_branch=false;
-				$condition=false;
-				$index=0;
-				$master_condition=$this->evaluate_expression($node->cond);
+				$break = false;
+				$master_condition = $this->evaluate_expression($node->cond);
 				$this->verbose("Concolic switch with ".count($node->cases)." cases found...\n",3);
-				$case_conditions = [];
-				$index = 0;
-				$have_symbolic_conditions = true;
+				$run_next_case = false;
 				// If the main condition is Symbolic then run everything
-                $run_next_case = false;
                 if ($master_condition instanceof SymbolicVariable) {
                     $this->verbose(strcolor("Switch condition relies on SymbolicVariable, running all branches\n", "light green"), 4);
                     foreach ($node->cases as $case) {
@@ -993,51 +988,25 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             $this->verbose(strcolor(
                                 sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(), $this->current_file, $this->current_line)
                                 , "light green"), 4);
-                            $this-> run_code($case->stmts);
+                            $this->run_code($case->stmts);
                             if ($this->loop_condition()) {
-                                $covered_one_branch = true;
+                                $break = true;
                                 break;
                             }
                         }
                         // If not default branch, fork for each case
-                        if (!$run_next_case) {
-                            if ($this->execution_mode === ExecutionMode::OFFLINE) {
-                                if ($this->checkpoint_restore_mode) {
-                                    $this->checkpoint_restore_mode = false;
+                        if (!$break) {
+                            $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case), true);
+                            if ($forked_process_info != false) {
+                                list($pid, $child_pid) = $forked_process_info;
+                                if ($child_pid === 0) {
+                                    // $this->terminate_early = true;
+                                    // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
                                     $this->run_code($case->stmts);
                                     // loop_condition reduces the number of breaks, it needs to be here
                                     if ($this->loop_condition()) {
-                                        $covered_one_branch = true;
+                                        $break = true;
                                         break;
-                                    } else {
-                                        $run_next_case = true;
-                                    }
-                                }
-                                else {
-                                    if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
-                                        $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $case);
-                                    }
-                                    else {
-                                        $this->terminated = true;
-                                        return;
-                                    }
-                                }
-                            }
-                            elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                                $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case), true);
-                                if ($forked_process_info !== false) {
-                                    list($pid, $child_pid) = $forked_process_info;
-                                    if ($child_pid === 0) {
-                                        // $this->terminate_early = true;
-                                        // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
-                                        $this->run_code($case->stmts);
-                                        // loop_condition reduces the number of breaks, it needs to be here
-                                        if ($this->loop_condition()) {
-                                            $covered_one_branch = true;
-                                            break;
-                                        } else {
-                                            $run_next_case = true;
-                                        }
                                     }
                                 }
                             }
@@ -1046,10 +1015,8 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             $this->run_code($case->stmts);
                             // loop_condition reduces the number of breaks, it needs to be here
                             if ($this->loop_condition()) {
-                                $covered_one_branch = true;
+                                $break = true;
                                 break;
-                            } else {
-                                $run_next_case = true;
                             }
                         }
                     }
@@ -1057,79 +1024,51 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 else {
                     // If individual cases are Symbolic then run that one
                     $this->verbose("Switch condition is concrete, checking branch conditions branches\n",4);
-                    $covered_one_branch = false;
-                    $run_next_case = false;
                     foreach ($node->cases as $case) {
-                        if ($covered_one_branch) {
+                        if ($break) {
                             break;
                         }
                         // If some of the conditions are concretely satisfied, run those
                         $cond = $this->evaluate_expression($case->cond);
-                        if ($cond == $master_condition && !$cond instanceof SymbolicVariable) {
+                        if ($cond == $master_condition && !$cond instanceof SymbolicVariable || $run_next_case) {
                             $this->run_code($case->stmts);
                             // loop_condition reduces the number of breaks, it needs to be here
                             if ($this->loop_condition()) {
-                                $covered_one_branch=true;
+                                $break = true;
+                                $run_next_case = false;
+                                break;
+                            }
+                            else {
+                                $run_next_case = true;
                             }
                         }
                         elseif ($cond instanceof SymbolicVariable || $run_next_case) {
                             // If some of the conditions are Symbolic, fork and run them
                             // Or if the case is piggy backing a Symbolic condition, also run that one ($run_next_case)
-                            $this->process_count++;
-                            $pid = true;
-                            if (!$run_next_case) {
-                                if ($this->execution_mode === ExecutionMode::OFFLINE) {
-                                    if ($this->checkpoint_restore_mode) {
-                                        $this->checkpoint_restore_mode = false;
+                            if (!$break) {
+                                $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case));
+                                if ($forked_process_info != false) {
+                                    list($pid, $child_pid) = $forked_process_info;
+                                    if ($child_pid === 0) {
+                                        // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
+                                        // $this->terminate_early = true;
                                         $this->run_code($case->stmts);
                                         // loop_condition reduces the number of breaks, it needs to be here
                                         if ($this->loop_condition()) {
-                                            $covered_one_branch = true;
+                                            $break = true;
                                             break;
-                                        } else {
-                                            $run_next_case = true;
                                         }
                                     }
-                                    else {
-                                        if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
-                                            $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $case);
-                                        }
-                                        else {
-                                            $this->terminated = true;
-                                            return;
-                                        }
-                                    }
-                                }
-                                elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                                    $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case));
-                                    if ($forked_process_info !== false) {
-                                        list($pid, $child_pid) = $forked_process_info;
-                                        if ($child_pid === 0) {
-                                            // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
-                                            // $this->terminate_early = true;
-                                            $this->run_code($case->stmts);
-                                            // loop_condition reduces the number of breaks, it needs to be here
-                                            if ($this->loop_condition()) {
-                                                $covered_one_branch = true;
-                                                break;
-                                            } else {
-                                                $run_next_case = true;
-                                            }
-                                        }
-                                    } else {
-                                        // Terminated
-                                        return;
-                                    }
+                                } else {
+                                    // Terminated
+                                    return;
                                 }
                             }
                             else {
                                 $this->run_code($case->stmts);
                                 // loop_condition reduces the number of breaks, it needs to be here
                                 if ($this->loop_condition()) {
-                                    $covered_one_branch = true;
                                     break;
-                                } else {
-                                    $run_next_case = true;
                                 }
                             }
                         }
@@ -1139,119 +1078,16 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                                 sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(),$this->current_file, $this->current_line)
                                 ,"light green"),4);
                             $this->run_code($case->stmts);
-                            $covered_one_branch=true;
                             // To take care of the last break
                             $this->loop_condition();
                             break;
                         }
                     }
                 }
-                // if ($this->terminate_early) {
-                //     $this->shutdown();
-                //     exit();
-                // }
                 return;
-                // If none of the cases are Symbolic nor satisfied then run the default case
-
-                // Else, run everything
-                foreach ($node->cases as $case)
-                {
-                    $index++;
-                    $case_condition[$this->statement_id($case)] = $this->evaluate_expression($case->cond);
-                    if ($case_condition && !$case_condition instanceof SymbolicVariable) {
-                        // We have found a concretely satisfied case
-                        $default=$case->cond===NULL;
-                        $d=$default?" (default)":"";
-                        $this->verbose("Case {$index}{$d} is a matching case, running...\n",0);
-                        $this->run_code($case->stmts);
-                        if ($this->loop_condition())
-                            $covered_one_branch=true;
-                    }
-                    elseif ($case_condition instanceof SymbolicVariable) {
-                        $have_symbolic_conditions = false;
-                    }
-                }
-                // if ($none_symbolic) {
-                //     // None of the cases are symbolic and none are concretely satisfied
-                //     // Run the default case
-                // }
-                $index = 0;
-				foreach ($node->cases as $case)
-				{
-                    if ($covered_one_branch) {
-                        break;
-                    }
-					$index++;
-					$default=$case->cond===NULL;
-					$this->verbose("Checking switch case {$index}...\n",4);
-					$this->inc("switch/branches");
-					if ($default and !$covered_one_branch) // default case
-						$condition=true; //run everything henceforth
-					elseif ($this->evaluate_expression($case->cond)==$cond) //real path
-						$condition=true;
-
-					$d=$default?" (default)":"";
-					if ($condition)
-					{
-						$this->verbose("Case {$index}{$d} is a matching case, running...\n",0);
-						$this->run_code($case->stmts);
-						if ($this->loop_condition())
-							$covered_one_branch=true;
-
-					}
-					else
-					{
-						$this->verbose("Case {$index}{$d} is a non-matching case, running off-branch...\n",0);
-                        if ($this->execution_mode === ExecutionMode::OFFLINE) {
-                            if ($this->checkpoint_restore_mode) {
-                                $this->checkpoint_restore_mode = false;
-                                $this->run_code($case->stmts);
-                                // loop_condition reduces the number of breaks, it needs to be here
-                                if ($this->loop_condition()) {
-                                    $covered_one_branch = true;
-                                }
-                            }
-                            else {
-                                if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
-                                    $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $case);
-                                }
-                                else {
-                                    $this->terminated = true;
-                                    return;
-                                }
-                            }
-                        }
-                        elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                            $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case));
-                            if ($forked_process_info !== false) {
-                                list($pid, $child_pid) = $forked_process_info;
-                                if ($child_pid === 0) {
-                                    $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
-                                    // $this->terminate_early = true;
-                                    $this->run_code($case->stmts);
-                                    // loop_condition reduces the number of breaks, it needs to be here
-                                    if ($this->loop_condition()) {
-                                        $covered_one_branch = true;
-                                    }
-                                }
-                            } else {
-                                // Terminated
-                                return;
-                            }
-                        }
-					}
-				}
-				// if (!empty($stmts))
-				// 	foreach ($stmts as $st)
-				// 		$this->run_code($st);
-                // if ($this->terminate_early) {
-                //     $this->shutdown();
-                //     exit();
-                // }
-				return;
 			}
 		}
-		// if (!$this->concolic)
+
 		return parent::run_statement($node);
 	}
 	function __destruct()

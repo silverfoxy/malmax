@@ -252,7 +252,7 @@ trait EmulatorStatement
 		elseif ($node instanceof Node\Stmt\Break_)
 		{
 			if (isset($node->num))
-				$this->break+=$this->evaluate_expression($node->num);
+				$this->break += $this->evaluate_expression($node->num);
 			else
 				$this->break++;
 		}
