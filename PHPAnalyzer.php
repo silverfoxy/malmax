@@ -996,27 +996,21 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         }
                         // If not default branch, fork for each case
                         if (!$break) {
-                            $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case), true);
-                            if ($forked_process_info != false) {
-                                list($pid, $child_pid) = $forked_process_info;
-                                if ($child_pid === 0) {
-                                    // $this->terminate_early = true;
-                                    // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
-                                    $this->run_code($case->stmts);
-                                    // loop_condition reduces the number of breaks, it needs to be here
-                                    if ($this->loop_condition()) {
-                                        $break = true;
-                                        break;
+                            if (sizeof($case->stmts) !== 0) {
+                                $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case), true);
+                                if ($forked_process_info != false) {
+                                    list($pid, $child_pid) = $forked_process_info;
+                                    if ($child_pid === 0) {
+                                        // $this->terminate_early = true;
+                                        // $this->verbose(strcolor(sprintf('%d will terminate early.'.PHP_EOL, getmypid()), 'green'));
+                                        $this->run_code($case->stmts);
+                                        // loop_condition reduces the number of breaks, it needs to be here
+                                        if ($this->loop_condition()) {
+                                            $break = true;
+                                            break;
+                                        }
                                     }
                                 }
-                            }
-                        }
-                        else {
-                            $this->run_code($case->stmts);
-                            // loop_condition reduces the number of breaks, it needs to be here
-                            if ($this->loop_condition()) {
-                                $break = true;
-                                break;
                             }
                         }
                     }
