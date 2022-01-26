@@ -503,7 +503,8 @@ class OOEmulator extends Emulator
 	{
 		$classname=$this->real_class($classname); //apparently 'new self' is ok!
 		// if (!$this->class_exists($classname))
-        if (!$this->user_class_exists($classname))
+        $predefined = include "hardcoded-vals.php";
+        if (!$this->user_class_exists($classname) && !in_array($classname,$predefined))
 			$this->spl_autoload_call($classname);
 		if ($this->user_class_exists($classname)) //user classes
 			return $this->new_user_object($classname,$args);
@@ -673,25 +674,50 @@ class OOEmulator extends Emulator
 			return $this->get_class_object($this->current_self)->parent;
 		return $classname;
 	}
+	
+	
+    /**
+     * Checks whether class object exists, and if not calls the autoloader
+     */
+    public function try_load_class($classname)
+    {
+        $fq_classname = $this->namespaced_name($classname);
+        $fq_class_obj = $this->get_class_object($fq_classname);
+        $class_obj = $this->get_class_object($classname);
+        if (isset($fq_class_obj)) {
+            $class_obj = $fq_class_obj;
+        }
+        elseif (!isset($class_obj)) {
+            $this->spl_autoload_call($classname);
+            $fq_classname = $this->namespaced_name($classname);
+            $fq_class_obj = $this->get_class_object($fq_classname);
+            $class_obj = $this->get_class_object($classname);
+            if (isset($fq_class_obj)) {
+                $class_obj = $fq_class_obj;
+            }
+            elseif (!isset($class_obj)) {
+                return null;
+            }
+
+        }
+        return $class_obj;
+    }
+
+
 	/**
 	 * Returns all parents, including self, of a class, ordered from youngest
 	 * Looks up self and static keywords
 	 * @param  string $classname 
 	 * @return array            
 	 */
+
 	public function ancestry($classname, $top_to_bottom=false)
 	{
         // Remove starting "/"
 		$classname = $this->real_class($classname);
-		$fq_classname = $this->namespaced_name($classname);
-		$fq_class_obj = $this->get_class_object($fq_classname);
-		$class_obj = $this->get_class_object($classname);
-		if (isset($fq_class_obj)) {
-            $class_obj = $fq_class_obj;
-        }
-		elseif (!isset($class_obj)) {
-		    return [];
-        }
+        $class_obj = $this->try_load_class($classname);
+        if($class_obj===null){return [];}
+
 		$res = [$classname];
 		while (isset($class_obj)
 			and $class_obj->parent)

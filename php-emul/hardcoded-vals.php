@@ -14,6 +14,7 @@ return array (
     "Error",
     "Throwable",
     "ParseError",
-    "TypeError"
+    "TypeError",
+    "mysqli"
 );
 ?>
