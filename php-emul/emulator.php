@@ -860,9 +860,13 @@ class Emulator
                 elseif ($base instanceof SymbolicVariable) {
                     if ($create)
                     {
-                        $this->warning('Creating an index within a Symbolic Array (Not supported)'.PHP_EOL);
-                        $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
-                        return $symbolic_arr_dim;
+                        // Temporarily enable creating indexes within symbolic arrays
+                        // This would overwrite the array to concrete so may produce side effects
+                        // eg: $_SESSION['cache'] = Symbolic, $_SESSION['cache']['server_1'] = '123';
+                        // $this->warning('Creating an index within a Symbolic Array (Not supported)'.PHP_EOL);
+                        // $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
+                        // return $symbolic_arr_dim;
+                        $base = [$index => null];
                     }
                     else {
                         $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
