@@ -674,8 +674,7 @@ class OOEmulator extends Emulator
 			return $this->get_class_object($this->current_self)->parent;
 		return $classname;
 	}
-	
-	
+
     /**
      * Checks whether class object exists, and if not calls the autoloader
      */
@@ -703,7 +702,6 @@ class OOEmulator extends Emulator
         return $class_obj;
     }
 
-
 	/**
 	 * Returns all parents, including self, of a class, ordered from youngest
 	 * Looks up self and static keywords
@@ -716,17 +714,18 @@ class OOEmulator extends Emulator
         // Remove starting "/"
 		$classname = $this->real_class($classname);
         $class_obj = $this->try_load_class($classname);
-        if($class_obj===null){return [];}
-
+        if ($class_obj === null) {
+            return [];
+        }
 		$res = [$classname];
-		while (isset($class_obj)
-			and $class_obj->parent)
-		{
+		while (isset($class_obj) and $class_obj->parent) {
 			$classname = $class_obj->parent;
 			$res[] = $classname;
 			$class_obj = $this->get_class_object($classname);
 		}
-		if ($top_to_bottom) $res=array_reverse($res);
+		if ($top_to_bottom) {
+            $res = array_reverse($res);
+        }
 		return $res;
 	}
 	/**
