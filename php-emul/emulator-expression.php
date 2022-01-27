@@ -147,7 +147,7 @@ trait EmulatorExpression {
 				    if ($resArray instanceof SymbolicVariable) {
 				        $outArray[] = new SymbolicVariable();
                     }
-					elseif (!isset($resArray[$index]))
+					elseif (!array_key_exists($index, $resArray))
 						$this->notice("Undefined offset: {$index}");
 					if ($var===null)
 						$outArray[]=$resArray[$index++];

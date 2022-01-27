@@ -94,14 +94,13 @@ trait EmulatorStatement
 			$this->loop_depth++;
 			for ($this->run_code($node->init);
                  $expr_cond = $this->evaluate_expression($node->cond[0]), ($expr_cond === true ||
-                 ($expr_cond instanceof SymbolicVariable ? $i < $symbolic_iterations : true));
+                 ($expr_cond instanceof SymbolicVariable ? $i < $symbolic_iterations : $expr_cond));
                  $this->run_code($node->loop))
 			{
 				$i++;	
 				$this->run_code($node->stmts);
 				if ($this->loop_condition($i))
 					break;
-                $expr_cond = $this->evaluate_expression($node->cond[0]);
 			}
 			$this->loop_depth--;
 		}
