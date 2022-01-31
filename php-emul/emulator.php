@@ -204,7 +204,7 @@ class Emulator
      * Configuration: inifite loop limit
      * @var integer
      */
-    public $infinite_loop	=	1000;
+    public $infinite_loop	=	100;
     /**
      * Maximum PHP version fully supported by the emulator
      * this is the version that will be returned via phpversion()
@@ -860,9 +860,13 @@ class Emulator
                 elseif ($base instanceof SymbolicVariable) {
                     if ($create)
                     {
-                        $this->warning('Creating an index within a Symbolic Array (Not supported)'.PHP_EOL);
-                        $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
-                        return $symbolic_arr_dim;
+                        // Temporarily enable creating indexes within symbolic arrays
+                        // This would overwrite the array to concrete so may produce side effects
+                        // eg: $_SESSION['cache'] = Symbolic, $_SESSION['cache']['server_1'] = '123';
+                        // $this->warning('Creating an index within a Symbolic Array (Not supported)'.PHP_EOL);
+                        // $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
+                        // return $symbolic_arr_dim;
+                        $base = [$index => null];
                     }
                     else {
                         $symbolic_arr_dim = new SymbolicVariable('SymbolicVar for '. $key);
@@ -955,7 +959,9 @@ class Emulator
             return $this->symbol_table($node_name,$key,$create);
         }
         elseif ($node instanceof Node\Expr\ArrayItem) {
-            if (! ($node->value instanceof Node\Expr\PropertyFetch || $node->value instanceof Node\Expr\StaticPropertyFetch)){
+            if (! ($node->value instanceof Node\Expr\PropertyFetch
+                    || $node->value instanceof Node\Expr\StaticPropertyFetch
+                    || $node->value instanceof Node\Expr\ArrayDimFetch)) {
                 return $this->symbol_table($node->value->name, $key, $create);
             } else {
                 return $this->symbol_table($node->value, $key, $create);
@@ -1019,9 +1025,9 @@ class Emulator
         }
         $regex = $this->summarize_regex($regex, true);
         $matched_elements = [];
-        foreach ($array as $element) {
-            if (is_string($element) && preg_match($regex, $element) === 1) {
-                $matched_elements[] = $element;
+        foreach ($array as $key => $value) {
+            if (preg_match($regex, strval($key)) === 1) {
+                $matched_elements[$key] = $value;
             }
         }
         return $matched_elements;
