@@ -419,14 +419,14 @@ trait EmulatorStatement
 	}
 	function constant_get($name)
 	{
-		if (defined($name))
-			return constant($name);
 		$fqname=$this->namespaced_name($name);
 		if (array_key_exists($fqname, $this->constants))
 			return $this->constants[$fqname];
 		elseif (array_key_exists($name, $this->constants))
 			return $this->constants[$name];
-		else
+        elseif (defined($name))
+            return constant($name);
+        else
 		{
 			if (is_string($fqname))
 			{
