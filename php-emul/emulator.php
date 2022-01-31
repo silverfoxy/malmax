@@ -959,7 +959,9 @@ class Emulator
             return $this->symbol_table($node_name,$key,$create);
         }
         elseif ($node instanceof Node\Expr\ArrayItem) {
-            if (! ($node->value instanceof Node\Expr\PropertyFetch || $node->value instanceof Node\Expr\StaticPropertyFetch)){
+            if (! ($node->value instanceof Node\Expr\PropertyFetch
+                    || $node->value instanceof Node\Expr\StaticPropertyFetch
+                    || $node->value instanceof Node\Expr\ArrayDimFetch)) {
                 return $this->symbol_table($node->value->name, $key, $create);
             } else {
                 return $this->symbol_table($node->value, $key, $create);
@@ -1023,9 +1025,9 @@ class Emulator
         }
         $regex = $this->summarize_regex($regex, true);
         $matched_elements = [];
-        foreach ($array as $element) {
-            if (is_string($element) && preg_match($regex, $element) === 1) {
-                $matched_elements[] = $element;
+        foreach ($array as $key => $value) {
+            if (preg_match($regex, strval($key)) === 1) {
+                $matched_elements[$key] = $value;
             }
         }
         return $matched_elements;

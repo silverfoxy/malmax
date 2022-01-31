@@ -640,7 +640,7 @@ trait EmulatorExpression {
                 $res = count($expr_value) == 0;
             } else
             {
-                $res=(!$this->variable_isset($node->expr) or ($expr_value==false));
+                $res = (!$this->variable_isset($node->expr) or ($expr_value == null));
             }
 			$this->error_restore();
 			return $res;
