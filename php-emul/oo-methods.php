@@ -17,7 +17,8 @@ trait OOEmulatorMethodExistence {
         if ($concolic === true
             && is_array(end($this->mocked_core_function_args))
             && end($this->mocked_core_function_args)[0]->value instanceof Variable
-            && isset($class_obj)) {
+            && isset($class_obj)
+            && !is_array($class_obj)) {
             $this->variable_set(end($this->mocked_core_function_args)[0]->value, $class_obj->name);
         }
 		return isset($class_obj) and ($type===null or $class_obj->type==$type);
@@ -140,7 +141,7 @@ trait OOEmulatorMethodExistence {
 		{
 			$classname=$obj->classname;
             $class_object = $this->get_class_object($classname);
-			if (!isset($class_object))
+			if (!isset($class_object) || (is_array($class_object) && sizeof($class_object) === 0))
 				return null;
 			return $class_object->parent;
 		}
@@ -173,7 +174,7 @@ trait OOEmulatorMethodExistence {
         if ($classname instanceof SymbolicVariable) {
             $regex_value = strtolower($classname->variable_value);
             $regex_value = substr($regex_value, 0, 1) === '\\' ? substr($regex_value, 1, strlen($regex_value) - 1) : $regex_value;
-            $classes = $this->regex_array_fetch(array_keys($this->classes), $regex_value);
+            $classes = $this->regex_array_fetch($this->classes, $regex_value);
             if (sizeof($classes) === 0) {
                 return $classes;
             }
@@ -187,7 +188,7 @@ trait OOEmulatorMethodExistence {
                     }
                 }
                 $class = array_pop($classes);
-                return $this->classes[$class];
+                return $class;
             }
         }
         else {
