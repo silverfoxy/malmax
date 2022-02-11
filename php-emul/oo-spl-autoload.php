@@ -32,14 +32,14 @@ trait OOEmulator_spl_autoload
 	{
 		return $this->autoloaders;
 	}
-	public function spl_autoload_call($class)
+	public function spl_autoload_call(&$class)
 	{
         $result = null;
 		if (empty($this->autoloaders)) return $result;
 		$this->verbose("Attempting to autoload '{$class}'...\n",3);
 		foreach ($this->autoloaders as $autoloader)
 			// if ($this->class_exists($class))
-            if ($this->user_class_exists($class))
+            if ($this->user_class_exists($class, true))
 			    break;
 			else 
 			{
