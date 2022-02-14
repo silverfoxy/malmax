@@ -5,12 +5,6 @@ function is_readable_mock($emul, $filename)
         return $filename->isset;
     }
     else {
-        // For /tmp/* file names, return true
-        if (strpos($filename, '/tmp') !== false ) {
-            return true;
-        }
-        else {
-            return is_readable($filename);
-        }
+        return is_readable($filename);
     }
 }
