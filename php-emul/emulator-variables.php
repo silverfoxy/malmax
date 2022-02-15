@@ -219,8 +219,8 @@ trait EmulatorVariables
 		}
 		elseif (is_array($r))
 		{
-			$success=true;
-            if($key=="dblink" and $r[$key]==null){
+			$success = true;
+            if ($key == "dblink" and $r[$key] == null){
                 $r[$key] = new SymbolicVariable();
             }
 			return $r[$key]; //if $r[$key] does not exist, will be created in byref use.

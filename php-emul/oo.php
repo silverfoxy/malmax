@@ -708,7 +708,6 @@ class OOEmulator extends Emulator
 	 * @param  string $classname 
 	 * @return array            
 	 */
-
 	public function ancestry($classname, $top_to_bottom=false)
 	{
         // Remove starting "/"

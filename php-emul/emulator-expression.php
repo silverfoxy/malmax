@@ -402,16 +402,21 @@ trait EmulatorExpression {
                 return $l >= $r;
             }
             elseif ($node instanceof Node\Expr\BinaryOp\Spaceship) {
-                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                if ($l instanceof SymbolicVariable) {
+                    return $l;
                 }
-                if ($l<$r) {
+                elseif ($r instanceof SymbolicVariable) {
+                    return $r;
+                }
+                if ($l < $r) {
                     return -1;
-                    }
-                elseif($l>$r) {
+                }
+                elseif ($l > $r) {
                     return 1;
-                    }
-                return 0;
+                }
+                else {
+                    return 0;
+                }
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
 			    if ($l) {
