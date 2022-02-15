@@ -204,7 +204,7 @@ class Emulator
      * Configuration: inifite loop limit
      * @var integer
      */
-    public $infinite_loop	=	100;
+    public $infinite_loop	=	1000;
 
     /**
      * Maximum PHP version fully supported by the emulator
@@ -594,12 +594,25 @@ class Emulator
                 }
             }
             elseif ($k === '_FILES') {
-                foreach (array_keys($v) as $key) {
-                    $v[$key] = ['name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
-                        'type' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
-                        'tmp_name' => '/tmp/php' .  substr(md5(rand()), 0, 6),
-                        'error' => 0,
-                        'size' => new SymbolicVariable('name', '*', Node\Scalar\LNumber::class, true)];
+                foreach ($v as $key => $value) {
+                    if (($file_upload = realpath(Utils::get_current_dir() . 'uploaded_files/' . $value)) !== false) {
+                        $temp_file = '/tmp/php' .  substr(md5(rand()), 0, 6);
+                        $file_type = pathinfo($file_upload, PATHINFO_EXTENSION);
+                        copy($file_upload, $temp_file);
+                        $file_size = filesize($temp_file);
+                        $v[$key] = ['name' => $value,
+                            'type' => $file_type,
+                            'tmp_name' => $temp_file,
+                            'error' => 0,
+                            'size' => $file_size];
+                    }
+                    else {
+                        $v[$key] = ['name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                            'type' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                            'tmp_name' => '/tmp/php' .  substr(md5(rand()), 0, 6),
+                            'error' => 0,
+                            'size' => new SymbolicVariable('name', '*', Node\Scalar\LNumber::class, true)];
+                    }
                 }
             }
 
