@@ -205,6 +205,7 @@ class Emulator
      * @var integer
      */
     public $infinite_loop	=	100;
+
     /**
      * Maximum PHP version fully supported by the emulator
      * this is the version that will be returned via phpversion()
@@ -596,7 +597,7 @@ class Emulator
                 foreach (array_keys($v) as $key) {
                     $v[$key] = ['name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
                         'type' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
-                        'tmp_name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                        'tmp_name' => '/tmp/php' .  substr(md5(rand()), 0, 6),
                         'error' => 0,
                         'size' => new SymbolicVariable('name', '*', Node\Scalar\LNumber::class, true)];
                 }
@@ -1018,10 +1019,10 @@ class Emulator
      * @param $regex
      * @return array
      */
-    function regex_array_fetch($array, $regex): array
+    function regex_array_fetch($array, $regex): ?array
     {
         if (!is_array($array)) {
-            return $array;
+            return [];
         }
         $regex = $this->summarize_regex($regex, true);
         $matched_elements = [];
