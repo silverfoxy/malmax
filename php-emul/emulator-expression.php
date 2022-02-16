@@ -286,6 +286,10 @@ trait EmulatorExpression {
 		{
 			$var=&$this->variable_reference($node->var); //TODO: use variable_set and get here instead
 			$val=$this->evaluate_expression($node->expr, $is_symbolic);
+            if ($val instanceof SymbolicVariable) {
+                // Performing AssignOp when RHS is symbolic would cast the RHS to string (eg '*')
+                return $var = $val;
+            }
 			if ($node instanceof Node\Expr\AssignOp\Plus)
 				return $var+=$val;
 			elseif ($node instanceof Node\Expr\AssignOp\Minus)
@@ -402,16 +406,21 @@ trait EmulatorExpression {
                 return $l >= $r;
             }
             elseif ($node instanceof Node\Expr\BinaryOp\Spaceship) {
-                if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return new SymbolicVariable();
+                if ($l instanceof SymbolicVariable) {
+                    return $l;
                 }
-                if ($l<$r) {
+                elseif ($r instanceof SymbolicVariable) {
+                    return $r;
+                }
+                if ($l < $r) {
                     return -1;
                 }
-                elseif ($l>$r) {
+                elseif ($l > $r) {
                     return 1;
                 }
-                return 0;
+                else {
+                    return 0;
+                }
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
 			    if ($l) {

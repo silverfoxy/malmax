@@ -204,7 +204,8 @@ class Emulator
      * Configuration: inifite loop limit
      * @var integer
      */
-    public $infinite_loop	=	100;
+    public $infinite_loop	=	1000;
+
     /**
      * Maximum PHP version fully supported by the emulator
      * this is the version that will be returned via phpversion()
@@ -593,12 +594,25 @@ class Emulator
                 }
             }
             elseif ($k === '_FILES') {
-                foreach (array_keys($v) as $key) {
-                    $v[$key] = ['name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
-                        'type' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
-                        'tmp_name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
-                        'error' => 0,
-                        'size' => new SymbolicVariable('name', '*', Node\Scalar\LNumber::class, true)];
+                foreach ($v as $key => $value) {
+                    if (($file_upload = realpath(Utils::get_current_dir() . 'uploaded_files/' . $value)) !== false) {
+                        $temp_file = '/tmp/php' .  substr(md5(rand()), 0, 6);
+                        $file_type = pathinfo($file_upload, PATHINFO_EXTENSION);
+                        copy($file_upload, $temp_file);
+                        $file_size = filesize($temp_file);
+                        $v[$key] = ['name' => $value,
+                            'type' => $file_type,
+                            'tmp_name' => $temp_file,
+                            'error' => 0,
+                            'size' => $file_size];
+                    }
+                    else {
+                        $v[$key] = ['name' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                            'type' => new SymbolicVariable('name', '*', Node\Scalar\String_::class, true),
+                            'tmp_name' => '/tmp/php' .  substr(md5(rand()), 0, 6),
+                            'error' => 0,
+                            'size' => new SymbolicVariable('name', '*', Node\Scalar\LNumber::class, true)];
+                    }
                 }
             }
 
@@ -940,7 +954,7 @@ class Emulator
                     $dbg = 1;
 
                 }
-                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', Scalar::class, true);
+                return new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', Scalar::class, true, $matched_elements);
             }
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));
@@ -1018,10 +1032,10 @@ class Emulator
      * @param $regex
      * @return array
      */
-    function regex_array_fetch($array, $regex): array
+    function regex_array_fetch($array, $regex): ?array
     {
         if (!is_array($array)) {
-            return $array;
+            return [];
         }
         $regex = $this->summarize_regex($regex, true);
         $matched_elements = [];
