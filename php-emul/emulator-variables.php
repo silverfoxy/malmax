@@ -121,22 +121,17 @@ trait EmulatorVariables
                 return $r[$key];
             }
             elseif ($r instanceof SymbolicVariable) {
+                if (!$key instanceof SymbolicVariable) {
+                    if (array_key_exists($key, $r->concrete_values)) {
+                        $r = $r->concrete_values[$key];
+                    }
+                    else {
+                        $this->notice("Undefined index: {$key}");
+                        return null;
+                    }
+                }
                 return $r;
             }
-            // elseif (is_object($r))
-            // {
-            // 	if ($r instanceof ArrayAccess)
-            // 		return $r[$key];
-            // 	else
-            // 	{
-            // 		if ($r instanceof EmulatorObject)
-            // 			$type=$r->classname;
-            // 		else
-            // 			$type=get_class($r);
-            // 		$this->error("Cannot use object of type {$type} as array");
-            // 		return null;
-            // 	}
-            // }
             else
             {
                 $this->warning("Using unknown type as array");
@@ -170,7 +165,15 @@ trait EmulatorVariables
 		$r = $this->symbol_table($node,$key,false);
 		$this->error_restore();
 		if ($r instanceof SymbolicVariable) {
-            if ($r->isset === true) {
+            if (count($r->concrete_values) > 0 && !$key instanceof SymbolicVariable) {
+                if (array_key_exists($key, $r->concrete_values)) {
+                    return true;
+                }
+                else {
+                    return false;
+                }
+            }
+            elseif ($r->isset === true) {
                 return true;
             }
             else {

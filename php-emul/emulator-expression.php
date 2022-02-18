@@ -145,22 +145,24 @@ trait EmulatorExpression {
 				foreach ($node->var->items as $var)
 				{
 				    if ($resArray instanceof SymbolicVariable) {
-				        $outArray[] = new SymbolicVariable();
+				        $outArray[] = $this->variable_set($var, clone $resArray);
                     }
 					elseif (!array_key_exists($index, $resArray))
 						$this->notice("Undefined offset: {$index}");
-					if ($var===null)
+					if ($var === null)
 						$outArray[]=$resArray[$index++];
 					elseif (!$resArray instanceof SymbolicVariable)
-						$outArray[]=$this->variable_set($var,$resArray[$index++]);
+						$outArray[] = $this->variable_set($var,$resArray[$index++]);
 				}
 				//return the rest of offsets, they are not assigned to anything by list, but still returned.
-				while ( $index<count($resArray))
-				{
-					if (!isset($resArray[$index]))
-						$this->notice("Undefined offset: {$index}");
-					$outArray[]=$resArray[$index++];
-				}
+				if (is_array($resArray)) {
+                    while ($index<count($resArray))
+                    {
+                        if (!isset($resArray[$index]))
+                            $this->notice("Undefined offset: {$index}");
+                        $outArray[]=$resArray[$index++];
+                    }
+                }
 				return $outArray;
 			}
 			else
