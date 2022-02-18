@@ -155,12 +155,14 @@ trait EmulatorExpression {
 						$outArray[]=$this->variable_set($var,$resArray[$index++]);
 				}
 				//return the rest of offsets, they are not assigned to anything by list, but still returned.
-				while ( $index<count($resArray))
-				{
-					if (!isset($resArray[$index]))
-						$this->notice("Undefined offset: {$index}");
-					$outArray[]=$resArray[$index++];
-				}
+				if (is_array($resArray)) {
+                    while ($index<count($resArray))
+                    {
+                        if (!isset($resArray[$index]))
+                            $this->notice("Undefined offset: {$index}");
+                        $outArray[]=$resArray[$index++];
+                    }
+                }
 				return $outArray;
 			}
 			else
@@ -286,6 +288,10 @@ trait EmulatorExpression {
 		{
 			$var=&$this->variable_reference($node->var); //TODO: use variable_set and get here instead
 			$val=$this->evaluate_expression($node->expr, $is_symbolic);
+            if ($val instanceof SymbolicVariable) {
+                // Performing AssignOp when RHS is symbolic would cast the RHS to string (eg '*')
+                return $var = $val;
+            }
 			if ($node instanceof Node\Expr\AssignOp\Plus)
 				return $var+=$val;
 			elseif ($node instanceof Node\Expr\AssignOp\Minus)
