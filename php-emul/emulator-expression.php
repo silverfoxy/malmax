@@ -145,22 +145,24 @@ trait EmulatorExpression {
 				foreach ($node->var->items as $var)
 				{
 				    if ($resArray instanceof SymbolicVariable) {
-				        $outArray[] = new SymbolicVariable();
+				        $outArray[] = $this->variable_set($var, clone $resArray);
                     }
 					elseif (!array_key_exists($index, $resArray))
 						$this->notice("Undefined offset: {$index}");
-					if ($var===null)
+					if ($var === null)
 						$outArray[]=$resArray[$index++];
 					elseif (!$resArray instanceof SymbolicVariable)
-						$outArray[]=$this->variable_set($var,$resArray[$index++]);
+						$outArray[] = $this->variable_set($var,$resArray[$index++]);
 				}
 				//return the rest of offsets, they are not assigned to anything by list, but still returned.
-				while ( $index<count($resArray))
-				{
-					if (!isset($resArray[$index]))
-						$this->notice("Undefined offset: {$index}");
-					$outArray[]=$resArray[$index++];
-				}
+				if (is_array($resArray)) {
+                    while ($index<count($resArray))
+                    {
+                        if (!isset($resArray[$index]))
+                            $this->notice("Undefined offset: {$index}");
+                        $outArray[]=$resArray[$index++];
+                    }
+                }
 				return $outArray;
 			}
 			else
@@ -640,7 +642,7 @@ trait EmulatorExpression {
 		    $expr_value = $this->evaluate_expression($node->expr, $is_symbolic);
 		    if ($expr_value instanceof SymbolicVariable) {
                 $this->error_restore();
-		        return !$expr_value->isset;
+		        return $expr_value->isset instanceof SymbolicVariable ? $expr_value->isset : !$expr_value->isset;
             }
 			//return true if not isset, or if false. only supports variables, and not expressions
             $res = false;

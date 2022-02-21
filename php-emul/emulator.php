@@ -869,7 +869,7 @@ class Emulator
                 }
                 elseif ($index instanceof SymbolicVariable) {
                     $this->verbose('Creating a Symbolic Index (Not supported)'.PHP_EOL);
-                    return new SymbolicVariable('Symbolic Index');
+                    return new SymbolicVariable('Symbolic Index', '*', NodeAbstract::class, new SymbolicVariable(), $base);
                 }
                 elseif ($base instanceof SymbolicVariable) {
                     if ($create)
