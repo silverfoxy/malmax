@@ -637,7 +637,7 @@ trait EmulatorExpression {
 		    $expr_value = $this->evaluate_expression($node->expr, $is_symbolic);
 		    if ($expr_value instanceof SymbolicVariable) {
                 $this->error_restore();
-		        return !$expr_value->isset;
+		        return $expr_value->isset instanceof SymbolicVariable ? $expr_value->isset : !$expr_value->isset;
             }
 			//return true if not isset, or if false. only supports variables, and not expressions
             $res = false;

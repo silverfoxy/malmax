@@ -121,7 +121,8 @@ trait EmulatorVariables
                 return $r[$key];
             }
             elseif ($r instanceof SymbolicVariable) {
-                if (!$key instanceof SymbolicVariable) {
+                if (!$key instanceof SymbolicVariable
+                    && count($r->concrete_values) > 0) {
                     if (array_key_exists($key, $r->concrete_values)) {
                         $r = $r->concrete_values[$key];
                     }
