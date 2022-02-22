@@ -215,17 +215,14 @@ trait EmulatorVariables
 		if ($key===null) //not found or GLOBALS
 		{
 			$success=false;
-			if($key=="dblink" and $r[$key]==null){
-				$r[$key] = new SymbolicVariable();
-			}
 			return $this->null_reference();
 		}
 		elseif (is_array($r))
 		{
 			$success = true;
-            if ($key == "dblink" and $r[$key] == null){
-                $r[$key] = new SymbolicVariable();
-            }
+            //if (($key == "dblink") and $r[$key] == null){
+            //    $r[$key] = new SymbolicVariable();
+            //}
 			return $r[$key]; //if $r[$key] does not exist, will be created in byref use.
 		}
 		elseif ($r instanceof SymbolicVariable) {
