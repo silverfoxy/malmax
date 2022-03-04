@@ -825,7 +825,12 @@ class OOEmulator extends Emulator
                 // $reflectionClass = new \ReflectionClass($var);
                 // $prop = $reflectionClass->getProperty($property_name);
                 // $prop->isPrivate();
-				$temp=['temp'=>&$var->{$property_name}]; //creates
+                if ($var instanceof SymbolicVariable) {
+                    $temp = ['temp' => new SymbolicVariable()];
+                }
+                else {
+                    $temp=['temp'=>&$var->{$property_name}]; //creates
+                }
 				$key='temp';
 				return $temp;
 				// return $var->{$property_name}; //self notice? #TEST
