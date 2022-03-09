@@ -844,12 +844,11 @@ class Emulator
                 return new SymbolicVariable();
             if (is_scalar($base)) //arraydimfetch on scalar returns null
                 return $this->null_reference($key);
-
-            if (is_object($base) and !$base instanceof ArrayAccess)
+            if ($base instanceof SymbolicVariable) {
+                return $base;
+            }
+            if (is_object($base) and !in_array('ArrayAccess', $this->class_implements($base)))
             {
-                if ($base instanceof SymbolicVariable) {
-                    return $base;
-                }
                 if ($base instanceof EmulatorObject)
                     $type=$base->classname;
                 else

@@ -60,37 +60,57 @@ trait EmulatorFunctions
 		reset($args);
 		foreach ($params as $param)
 		{
+            if (isset($param->name))
+                $param_name = $param->name;
+            else
+                $param_name = $param->var->name;
 			if ($index>=$count) //all explicit arguments processed, remainder either defaults or error
 			{
-                if (isset($param->name))
-                    $param_name = $param->name;
-                else
-                    $param_name = $param->var->name;
 				if (isset($param->default)) {
 					$function_variables[$param_name]=$this->evaluate_expression($param->default);
                 }
 				else
 				{
-					$this->warning("Missing argument ".($index)." for {$name}()");
-					$function_variables[$param->name]=null;
+                    if($param->variadic===false){
+                        $this->warning("Missing argument ".($index)." for {$name}()");
+                    }
+					$function_variables[$param_name]=null;
 				}
-
 			}
 			else //args still available, copy to current symbol table
 			{
 				if (current($args) instanceof Node)
 				{
-					$argVal=current($args)->value;
-					if ($param->byRef)	// byref handle
-					{
-						if (!$this->variable_isset($argVal))
-							$this->variable_set($argVal);
-						$ref=&$this->variable_reference($argVal);
-						$function_variables[$this->name($param)]=&$ref;
-						$processed_args[]=&$ref;
-					}
-					else //byval
-						$processed_args[]=$function_variables[$this->name($param)]=$this->evaluate_expression($argVal);
+                    if(current($args)->unpack){
+                        //slice where each($args)->key is
+                        $argVal=current($args);
+                        $a = $this->evaluate_expression($argVal->value);
+                        if($a!==null) {
+                            $array_prefix = key($args) === 0 ? [] : array_slice($args, 0, key($args) - 1);
+                            $array_suffix = key($args) + 1 > sizeof($args) ? [] : array_slice($args, key($args) + 1);
+                            $args = array_merge($array_prefix, $a, $array_suffix);
+                            $count = $count + count($a) - 1;
+                        }
+                    }
+                    if(current($args) instanceof Arg) {
+                        $argVal = current($args)->value;
+                        if ($param->byRef)    // byref handle
+                        {
+                            if (!$this->variable_isset($argVal))
+                                $this->variable_set($argVal);
+                            $ref =& $this->variable_reference($argVal);
+                            $function_variables[$this->name($param)] =& $ref;
+                            $processed_args[] =& $ref;
+                        }
+                        else { //byval
+
+                            $processed_args[] = $function_variables[$this->name($param)] = $this->evaluate_expression($argVal);
+                        }
+                    }
+                    else {
+                        $processed_args[] = $function_variables[$this->name($param)] = current($args);
+                    }
+
 				}
 				else //direct value, not a Node
 				{

@@ -90,8 +90,9 @@ class EmulatorObject
 	{
 		#FIXME: this might cause errors if the class has no __toString but is used as one, causing errors
 		if (self::$emul->method_exists($this, "__toString"))
-			return self::$emul->run_method($this,"__toString");		
-		self::$emul->error("Object of class '{$this->classname}' could not be converted to string");
+			return self::$emul->run_method($this,"__toString");
+		self::$emul->notice("Object of class '{$this->classname}' could not be converted to string");
+        return $this->classname;
 	}
 
 	public function isVisible(string $property_name) {
@@ -474,7 +475,7 @@ class OOEmulator extends Emulator
 		$this->verbose("New instance of core class '{$classname}'\n",5);
 		$class=$classname;
 		if (in_array($classname, $this->symbolic_classes)) {
-		    return new SymbolicVariable($classname);
+		    return new SymbolicVariable($classname,'*',Node\Stmt\ClassLike::class);
         }
 		$mocked=isset($this->mock_classes[strtolower($classname)]);
 		if ($mocked)
@@ -963,7 +964,17 @@ class OOEmulator extends Emulator
 				return true;	
 		return false;
 	}
-	
+
+    public function class_implements($class_or_object,$autoload=true)
+{
+	$class=$class_or_object;
+	if ($autoload) $this->autoload($class);
+	if (!is_string($class))
+		$class=$this->get_class($class_or_object);
+	if (class_exists($class) and $class!="EmulatorObject" ) return class_implements($class_or_object,$autoload);
+	$interfaces = $this->get_class_object($class)->interfaces;
+	return array_combine($interfaces,$interfaces);
+}
 	/**
 	 * Checks whether a symbol table node is visible or not, in current context
 	 * @param  $node Node
