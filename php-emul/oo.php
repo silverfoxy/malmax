@@ -212,23 +212,23 @@ class OOEmulator extends Emulator
 	 * @var array
 	 */
 	public $mock_classes=[];
-	protected $current_method,$current_trait;
+    public $current_method,$current_trait;
 	/**
 	 * Holds $this, a reference to current active object
 	 * @var EmulatorObject
 	 */
-	protected $current_this=null;
+	public $current_this=null;
 	/**
 	 * Holds the current static class, for example A for A::x()
 	 * This is what self and __CLASS__ resolve to
 	 * @var null
 	 */
-	protected $current_self=null;
+    public $current_self=null;
 	/**
 	 * Holds the current dynamic class (late static binding)
 	 * @var null
 	 */
-	protected $current_class=null;
+    public $current_class=null;
 
     protected function define_class($node)
 	{

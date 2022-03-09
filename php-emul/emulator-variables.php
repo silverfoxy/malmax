@@ -89,7 +89,7 @@ trait EmulatorVariables
                     && $r->type === String_::class
                     && is_int($key)
                     && strlen($r->variable_value) >= $key)) {
-                if ($symbolic_str === true) {
+                if (isset($symbolic_str) && $symbolic_str === true) {
                     return $r->variable_value[$key];
                 }
                 else {
