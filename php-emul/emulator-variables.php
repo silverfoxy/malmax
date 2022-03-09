@@ -136,6 +136,9 @@ trait EmulatorVariables
             else
             {
                 $this->warning("Using unknown type as array");
+                if(is_object($r)){
+                    return $r->properties[$key];
+                }
                 return $r[$key];
             }
         }

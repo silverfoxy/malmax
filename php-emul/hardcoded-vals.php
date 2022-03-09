@@ -15,6 +15,7 @@ return array (
     "Throwable",
     "ParseError",
     "TypeError",
-    "mysqli"
+    "mysqli",
+    "Qrequest"
 );
 ?>

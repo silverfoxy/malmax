@@ -319,7 +319,9 @@ trait EmulatorExpression {
 		}
 		elseif ($node instanceof Node\Expr\BinaryOp)
 		{
-			$l=$this->evaluate_expression($node->left, $is_symbolic); #can't eval right here, prevents short circuit reliant code
+            if (!$node instanceof Node\Expr\BinaryOp\Coalesce) {
+                $l=$this->evaluate_expression($node->left, $is_symbolic); #can't eval right here, prevents short circuit reliant code
+            }
             if (!($node instanceof Node\Expr\BinaryOp\BooleanAnd ||
                   $node instanceof Node\Expr\BinaryOp\BooleanOr  ||
                   $node instanceof Node\Expr\BinaryOp\LogicalAnd ||
@@ -437,6 +439,9 @@ trait EmulatorExpression {
                 }
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
+                $this->error_silence();
+                $l=$this->evaluate_expression($node->left, $is_symbolic);
+                $this->error_restore();
                 if ($l instanceof SymbolicVariable) {
                     $forked_process_info = $this->fork_execution([]);
                     list($pid, $child_pid) = $forked_process_info;
@@ -811,9 +816,9 @@ trait EmulatorExpression {
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {
-                            return $this->evaluate_expression($node->if);
-                        } else {
                             return $this->evaluate_expression($node->else);
+                        } else {
+                            return $this->evaluate_expression($node->if);
                         }
                     } else {
                         // Terminated

@@ -220,12 +220,10 @@ trait EmulatorStatement
 		elseif ($node instanceof Node\Stmt\Declare_)
 		{
 			//TODO: handle tick function here, by wrapping it
-			$data=[];
 			$code="declare(";
 			foreach ($node->declares as $declare)
 			{
 			    $exp = $this->evaluate_expression($declare->value);
-				$data[$declare->key]=$exp;
 				if(is_int($exp))
                     $code.="{$declare->key}=".$exp.",";
 				else
