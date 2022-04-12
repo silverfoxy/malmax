@@ -854,6 +854,8 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 $this->current_line = $node->getLine();
                 $this->lineLogger->logNodeCoverage($node->cond, $this->current_file);
 				$main_branch_condition = $this->evaluate_expression($node->cond, $is_symbolic);
+                // Function calls inside if may change current line, revert it to original value
+                $this->current_line = $node->getLine();
 				// $this->verbose('main branch condition: '.print_r($main_branch_condition, true).PHP_EOL);
                 if ($main_branch_condition && !$main_branch_condition instanceof SymbolicVariable) {
                     // Condition of this branch is concretely satisfied
