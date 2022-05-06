@@ -847,14 +847,16 @@ class Emulator
             if ($base instanceof SymbolicVariable) {
                 return $base;
             }
-            if (is_object($base) and !in_array('ArrayAccess', $this->class_implements($base)))
+            if (is_object($base))
             {
-                if ($base instanceof EmulatorObject)
-                    $type=$base->classname;
-                else
-                    $type=get_class($base);
-                $this->error("Cannot use object of type {$type} as array");
-                return $this->null_reference($key);
+                if (!in_array('ArrayAccess', $this->class_implements($base))) {
+                    if ($base instanceof EmulatorObject)
+                        $type = $base->classname;
+                    else
+                        $type = get_class($base);
+                    $this->error("Cannot use object of type {$type} as array");
+                    return $this->null_reference($key);
+                }
             }
             // if (is_null($base))
             // 	return $this->null_reference($key);
@@ -910,8 +912,16 @@ class Emulator
                     end($base);
                     $key=key($base);
                 }
-                elseif (!$base instanceof SymbolicVariable && !isset($base[$key])) //non-existent index
-                    $base[$key] = null;
+                elseif (!$base instanceof SymbolicVariable) {
+                    if ($base instanceof EmulatorObject && in_array('ArrayAccess', $this->class_implements($base))) {
+                        if(!$base->hasProperty($key)) {
+                            $base->setProperty($key, null);
+                        }
+                    }
+                    elseif(!isset($base[$key])) {
+                        $base[$key] = null;
+                    }
+                }
             }
 
             // Prevents setting concrete values to symbolic variables
