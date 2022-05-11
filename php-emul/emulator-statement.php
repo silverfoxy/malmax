@@ -194,6 +194,7 @@ trait EmulatorStatement
                 return null; #if already terminated die
             if ($byref) {
                 if ($list instanceof SymbolicVariable) {
+                    // Symbolic foreach
                     for ($i = 0; $i < $this->symbolic_loop_iterations; $i++) {
                         if ($keyed) {
                             $keyVar = $list;
@@ -205,6 +206,20 @@ trait EmulatorStatement
                             break;
                     }
                 }
+                else {
+                    // Concrete foreach
+                    foreach ($list as $k => &$v) {
+                        if ($keyed)
+                            $keyVar = $k;
+                        $this->variable_set_byref($node->valueVar, $v);
+                        $this->run_code($node->stmts);
+
+                        if ($this->loop_condition())
+                            break;
+                    }
+                }
+            }
+            else {
                 foreach ($list as $k => &$v) {
                     if ($keyed)
                         $keyVar = $k;
@@ -215,19 +230,6 @@ trait EmulatorStatement
                         break;
                 }
             }
-            else
-                foreach ($list as $k=>$v)
-                {
-                    if ($keyed) {
-                        $keyVar=$k;
-                        $this->variable_set($node->keyVar,$keyVar);
-                    }
-                    $this->variable_set($node->valueVar,$v);
-                    $this->run_code($node->stmts);
-
-                    if ($this->loop_condition())
-                        break;
-                }
             $this->loop_depth--;
 		}
 		elseif ($node instanceof Node\Stmt\Declare_)
