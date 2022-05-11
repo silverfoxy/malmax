@@ -172,50 +172,63 @@ trait EmulatorStatement
                     $this->loop_depth--;
                 }
             }
-            if (!$symbolic) {
-                $keyed=false;
-                //OO code here, to prevent double evaluation of list
-                if ($list instanceof EmulatorObject)
-                    $list=$list->properties;
-                if (isset($node->keyVar))
-                {
-                    $keyed=true;
-                    if (!$this->variable_isset($node->keyVar))
-                        $this->variable_set($node->keyVar);
-                    $keyVar=&$this->variable_reference($node->keyVar);
-                }
-                // if (!$this->variable_isset($node->valueVar))
-                // 	$this->variable_set($node->valueVar);
-                // $valueVar=&$this->variable_reference($node->valueVar);
-                $this->loop_depth++;
-                if ($this->loop_condition())
-                    return null; #if already terminated die
-                if ($byref)
-                    foreach ($list as $k=>&$v)
-                    {
-                        if ($keyed)
-                            $keyVar=$k;
-                        $this->variable_set_byref($node->valueVar,$v);
-                        $this->run_code($node->stmts);
-
-                        if ($this->loop_condition())
-                            break;
-                    }
-                else
-                    foreach ($list as $k=>$v)
-                    {
-                        if ($keyed) {
-                            $keyVar=$k;
-                            $this->variable_set($node->keyVar,$keyVar);
-                        }
-                        $this->variable_set($node->valueVar,$v);
-                        $this->run_code($node->stmts);
-
-                        if ($this->loop_condition())
-                            break;
-                    }
-                $this->loop_depth--;
+            $keyed=false;
+            //OO code here, to prevent double evaluation of list
+            if ($list instanceof EmulatorObject)
+                $list=$list->properties;
+            if (isset($node->keyVar))
+            {
+                $keyed=true;
+                if (!$this->variable_isset($node->keyVar))
+                    $this->variable_set($node->keyVar);
+                $keyVar=&$this->variable_reference($node->keyVar);
             }
+            // if (!$this->variable_isset($node->valueVar))
+            // 	$this->variable_set($node->valueVar);
+            // $valueVar=&$this->variable_reference($node->valueVar);
+            if ($symbolic) {
+                $dbg = 1;
+            }
+            $this->loop_depth++;
+            if ($this->loop_condition())
+                return null; #if already terminated die
+            if ($byref) {
+                if ($list instanceof SymbolicVariable) {
+                    for ($i = 0; $i < $this->symbolic_loop_iterations; $i++) {
+                        if ($keyed) {
+                            $keyVar = $list;
+                        }
+                        $this->variable_set_byref($node->valueVar, $list);
+                        $this->run_code($node->stmts);
+
+                        if ($this->loop_condition())
+                            break;
+                    }
+                }
+                foreach ($list as $k => &$v) {
+                    if ($keyed)
+                        $keyVar = $k;
+                    $this->variable_set_byref($node->valueVar, $v);
+                    $this->run_code($node->stmts);
+
+                    if ($this->loop_condition())
+                        break;
+                }
+            }
+            else
+                foreach ($list as $k=>$v)
+                {
+                    if ($keyed) {
+                        $keyVar=$k;
+                        $this->variable_set($node->keyVar,$keyVar);
+                    }
+                    $this->variable_set($node->valueVar,$v);
+                    $this->run_code($node->stmts);
+
+                    if ($this->loop_condition())
+                        break;
+                }
+            $this->loop_depth--;
 		}
 		elseif ($node instanceof Node\Stmt\Declare_)
 		{
