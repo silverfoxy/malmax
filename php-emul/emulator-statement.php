@@ -161,7 +161,7 @@ trait EmulatorStatement
                     if (isset($node->keyVar)) {
                         $this->variable_set($node->keyVar, new SymbolicVariable('Symbolic_Foreach_keyVar' . $this->current_line));
                     }
-                    $this->variable_set($node->valueVar,new SymbolicVariable('Symbolic_Foreach_valueVar'.$this->current_line));
+                    $this->variable_set($node->valueVar, new SymbolicVariable('Symbolic_Foreach_valueVar'.$this->current_line));
                     for ($i = 0; $i < $symbolic_iterations; $i++) {
                         $this->run_code($node->stmts);
                         if ($this->loop_condition())
@@ -186,9 +186,6 @@ trait EmulatorStatement
             // if (!$this->variable_isset($node->valueVar))
             // 	$this->variable_set($node->valueVar);
             // $valueVar=&$this->variable_reference($node->valueVar);
-            if ($symbolic) {
-                $dbg = 1;
-            }
             $this->loop_depth++;
             if ($this->loop_condition())
                 return null; #if already terminated die
@@ -219,7 +216,7 @@ trait EmulatorStatement
                     }
                 }
             }
-            else {
+            elseif (!$list instanceof SymbolicVariable) {
                 foreach ($list as $k => &$v) {
                     if ($keyed)
                         $keyVar = $k;
