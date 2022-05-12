@@ -971,15 +971,24 @@ class OOEmulator extends Emulator
 	}
 
     public function class_implements($class_or_object,$autoload=true)
-{
-	$class=$class_or_object;
-	if ($autoload) $this->autoload($class);
-	if (!is_string($class))
-		$class=$this->get_class($class_or_object);
-	if (class_exists($class) and $class!="EmulatorObject" ) return class_implements($class_or_object,$autoload);
-	$interfaces = $this->get_class_object($class)->interfaces;
-	return array_combine($interfaces,$interfaces);
-}
+    {
+        $class = $class_or_object;
+        if ($autoload) {
+            $this->autoload($class);
+        }
+        if (!is_string($class)) {
+            $class = $this->get_class($class_or_object);
+        }
+        if (class_exists($class) and $class != "EmulatorObject" ) {
+            return class_implements($class_or_object, $autoload);
+        }
+        $interfaces = [];
+        foreach ($this->ancestry($class) as $cls) {
+            $interfaces = array_merge($interfaces, $this->get_class_object($cls)->interfaces);
+        }
+        // Merge with parents interfaces
+        return array_combine($interfaces, $interfaces);
+    }
 	/**
 	 * Checks whether a symbol table node is visible or not, in current context
 	 * @param  $node Node

@@ -172,6 +172,7 @@ trait EmulatorStatement
                     $this->loop_depth--;
                 }
             }
+<<<<<<< HEAD
             if (!$symbolic) {
                 $keyed=false;
                 //OO code here, to prevent double evaluation of list
@@ -204,21 +205,32 @@ trait EmulatorStatement
                         if ($this->loop_condition())
                             break;
                     }
-                else
-                    foreach ($list as $k=>$v)
-                    {
-                        if ($keyed) {
-                            $keyVar=$k;
-                            $this->variable_set($node->keyVar,$keyVar);
-                        }
-                        $this->variable_set($node->valueVar,$v);
+                }
+                else {
+                    // Concrete foreach
+                    foreach ($list as $k => &$v) {
+                        if ($keyed)
+                            $keyVar = $k;
+                        $this->variable_set_byref($node->valueVar, $v);
                         $this->run_code($node->stmts);
 
                         if ($this->loop_condition())
                             break;
                     }
-                $this->loop_depth--;
+                }
             }
+            else {
+                foreach ($list as $k => &$v) {
+                    if ($keyed)
+                        $keyVar = $k;
+                    $this->variable_set_byref($node->valueVar, $v);
+                    $this->run_code($node->stmts);
+
+                    if ($this->loop_condition())
+                        break;
+                }
+            }
+            $this->loop_depth--;
 		}
 		elseif ($node instanceof Node\Stmt\Declare_)
 		{

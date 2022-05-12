@@ -60,6 +60,9 @@ trait EmulatorVariables
                 //         unset($this->symbolic_variables[$array_index]);
                 //     }
                 // }
+                if ($r instanceof EmulatorObject && in_array('ArrayAccess', $this->class_implements( $r))) {
+                    return $r->setProperty($key, $value);
+                }
                 return $r[$key]=$value;
             }
         }
@@ -188,9 +191,12 @@ trait EmulatorVariables
 		    // $this->verbose('Variable isset -> Symbolic'.PHP_EOL);
 		    return new SymbolicVariable($this->name($node).'[SymbolicVariable]');
         }
-		elseif (isset($r[$key]) && $r[$key] instanceof SymbolicVariable) {
+		elseif (is_array($r) && isset($r[$key]) && $r[$key] instanceof SymbolicVariable) {
             // $this->verbose('Variable isset -> '.print_r($r[$key], true).PHP_EOL);
 		    return $r[$key];
+        }
+        elseif ($r instanceof EmulatorObject && in_array('ArrayAccess', $this->class_implements($r))) {
+            return $r->properties[$key];
         }
 		else {
             // $this->verbose('Variable isset -> '.$key!==null and isset($r[$key]) ? 'true' : 'false'.PHP_EOL);

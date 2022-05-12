@@ -366,6 +366,21 @@ trait EmulatorFunctions
         if (empty($this->mock_functions[strtolower($name)])) {
             foreach ($argValues as $arg) {
                 if ($arg instanceof SymbolicVariable) {
+                    // Set any byRef parameter to Symbolic as well
+                    // e.g., preg_match_all(..., &$matches, ...) includes the result of the function.
+                    $reflection_function = new \ReflectionFunction($name);
+                    $function_reflection_parameters = $reflection_function->getParameters();
+                    $param_index = 0;
+                    foreach ($function_reflection_parameters as $param) {
+                        if ($param->isPassedByReference()) {
+                            if ((is_array($args) && sizeof($args) > $param_index)
+                                 || $param_index === 0) { // Skip non-provided optional parameters
+                                $param_name = $this->get_variableـname($args[$param_index]->value);
+                                $this->variable_set($param_name, new SymbolicVariable($param_name));
+                            }
+                        }
+                        $param_index++;
+                    }
                     return new SymbolicVariable($name, $arg->variable_value);
                 }
             }
@@ -379,7 +394,7 @@ trait EmulatorFunctions
 		if (isset($this->mock_functions[strtolower($name)])) { //mocked
             if (is_array($args)) {
                 if ($args[0]->value instanceof Variable
-                    && $this->variable_get($args[0]->value) instanceof SymbolicVariable) {
+                    && ($this->variable_get($args[0]->value) instanceof SymbolicVariable)) {
                     $this->mocked_core_function_args[] = $args;
                 } elseif ($args[0]->value instanceof Assign) {
                     $this->mocked_core_function_args[] = [new Arg($args[0]->value->var)];
