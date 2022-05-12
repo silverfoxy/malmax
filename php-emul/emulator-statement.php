@@ -175,8 +175,11 @@ trait EmulatorStatement
             if (!$symbolic) {
                 $keyed=false;
                 //OO code here, to prevent double evaluation of list
-                if ($list instanceof EmulatorObject)
-                    $list=$list->properties;
+                if ($list instanceof EmulatorObject and in_array('IteratorAggregate', $this->class_implements($list))){
+                    $list = $this->run_method($list,'getIterator');
+                }
+                else if ($list instanceof EmulatorObject and in_array('ArrayAccess', $this->class_implements($list))){
+                        $list=$list->properties;}
                 if (isset($node->keyVar))
                 {
                     $keyed=true;

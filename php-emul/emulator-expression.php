@@ -715,6 +715,10 @@ trait EmulatorExpression {
 
 				return shell_exec($res);
 		}
+        elseif ($node instanceof Node\Expr\Yield_)
+        {
+            #Implement yield
+        }
 		elseif ($node instanceof Node\Expr\Instanceof_)
 		{
 			$var=$this->evaluate_expression($node->expr, $is_symbolic);
