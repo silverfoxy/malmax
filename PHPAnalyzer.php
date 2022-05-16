@@ -68,9 +68,12 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 	 * A list of statements processed
 	 * @var array
 	 */
-	public $statements=[];
+	public $statements = [];
 
-	public $declared_statements=[];
+	public $declared_statements = [];
+
+    // Current priority of this execution from the queue
+    public $current_priority = null;
 
     /**
      * Tracks whether extended logs are provided to the emulation

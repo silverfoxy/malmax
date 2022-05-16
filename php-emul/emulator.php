@@ -1814,7 +1814,7 @@ class Emulator
             $this->verbose(sprintf('Adding reanimation task at %s:%d', $this->current_file, $this->current_line).PHP_EOL);
             // $this->verbose(print_r($this->full_reanimation_transcript, true).PHP_EOL);
             // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
-            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id, $this->extended_logs_emulation_mode, $new_branch_coverage);
+            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id, $this->extended_logs_emulation_mode, $new_branch_coverage, $this->current_priority);
             return array($pid, $child_pid);
         }
     }

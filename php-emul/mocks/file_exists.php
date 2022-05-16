@@ -24,7 +24,7 @@ function file_exists_mock($emul, $filename)
         else {
             while(sizeof($files) > 1) {
                 $file = array_pop($files);
-                $forked_process_info = $emul->fork_execution([$file => range(1, 100)]);
+                $forked_process_info = $emul->fork_execution([$file => rand(1, 10)]);
                 list($pid, $child_pid) = $forked_process_info;
                 if ($child_pid === 0) {
                     if (isset(end($emul->mocked_core_function_args)[0]->value)) {
