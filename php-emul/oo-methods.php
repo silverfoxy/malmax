@@ -207,7 +207,12 @@ trait OOEmulatorMethodExistence {
         else {
             $classname = strtolower($classname);
             $classname = substr($classname, 0, 1) === '\\' ? substr($classname, 1, strlen($classname) - 1) : $classname;
-            return $this->classes[$classname];
+            if(!array_key_exists($classname, $this->classes)) {
+                $null = null;
+                return $null;
+            }
+            else
+                return $this->classes[$classname];
         }
     }
 	/**

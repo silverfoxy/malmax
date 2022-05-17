@@ -1774,7 +1774,7 @@ class Emulator
                 // else {
                 //     $this->notice(print_r($reanimation_entry, true));
                 // }
-                if ($reanimation_entry['current_file'] === $this->current_file
+                  if ($reanimation_entry['current_file'] === $this->current_file
                     && $reanimation_entry['current_line'] === $this->current_line) {
                     if ($reanimation_entry['forked'] === true) {
                         $child_pid = 0;

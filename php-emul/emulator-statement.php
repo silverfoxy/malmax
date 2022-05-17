@@ -172,15 +172,16 @@ trait EmulatorStatement
                     $this->loop_depth--;
                 }
             }
-<<<<<<< HEAD
-            if (!$symbolic) {
                 $keyed=false;
                 //OO code here, to prevent double evaluation of list
                 if ($list instanceof EmulatorObject and in_array('IteratorAggregate', $this->class_implements($list))){
                     $list = $this->run_method($list,'getIterator');
                 }
                 else if ($list instanceof EmulatorObject and in_array('ArrayAccess', $this->class_implements($list))){
-                        $list=$list->properties;}
+                        $list=$list->properties;
+                }
+                else if ($list instanceof EmulatorObject)
+                    $list=$list->properties;
                 if (isset($node->keyVar))
                 {
                     $keyed=true;
@@ -191,16 +192,21 @@ trait EmulatorStatement
                 // if (!$this->variable_isset($node->valueVar))
                 // 	$this->variable_set($node->valueVar);
                 // $valueVar=&$this->variable_reference($node->valueVar);
-                $this->loop_depth++;
+            if ($symbolic) {
+                $dbg = 1;
+            }
+            $this->loop_depth++;
                 if ($this->loop_condition())
                     return null; #if already terminated die
-                if ($byref)
-                    foreach ($list as $k=>&$v)
-                    {
-                        if ($keyed)
-                            $keyVar=$k;
-                        $this->variable_set_byref($node->valueVar,$v);
-                        $this->run_code($node->stmts);
+                if ($byref){
+                    if ($list instanceof SymbolicVariable) {
+                        // Symbolic foreach
+                        for ($i = 0; $i < $this->symbolic_loop_iterations; $i++) {
+                            if ($keyed) {
+                                $keyVar = $list;
+                            }
+                            $this->variable_set_byref($node->valueVar, $list);
+                            $this->run_code($node->stmts);
 
                         if ($this->loop_condition())
                             break;
