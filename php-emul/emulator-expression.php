@@ -718,6 +718,7 @@ trait EmulatorExpression {
         elseif ($node instanceof Node\Expr\Yield_)
         {
             #Implement yield
+            $this->error("Yield node not implemented: ",$node);
         }
 		elseif ($node instanceof Node\Expr\Instanceof_)
 		{

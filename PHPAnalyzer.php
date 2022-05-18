@@ -867,7 +867,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 elseif ($main_branch_condition instanceof SymbolicVariable) {
                     // $this->verbose('should be forking'.PHP_EOL);
                     $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $node->cond));
-                    if ($forked_process_info !== null) {
+                    if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {
                             // $this->terminate_early = true;

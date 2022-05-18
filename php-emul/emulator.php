@@ -1774,7 +1774,7 @@ class Emulator
                 // else {
                 //     $this->notice(print_r($reanimation_entry, true));
                 // }
-                  if ($reanimation_entry['current_file'] === $this->current_file
+                if ($reanimation_entry['current_file'] === $this->current_file
                     && $reanimation_entry['current_line'] === $this->current_line) {
                     if ($reanimation_entry['forked'] === true) {
                         $child_pid = 0;
@@ -1784,8 +1784,6 @@ class Emulator
                         $child_pid = random_int(1, 9999);
                         $this->verbose(strcolor(sprintf('Reanimating in progress, continued to parent process [Random child id: %d] (%s:%d)' . PHP_EOL, $child_pid, $this->current_file, $this->current_line), 'light green'));
                     }
-                    // $this->notice('Child pid: '.$child_pid.PHP_EOL);
-                    // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
                     return array(getmypid(), $child_pid);
                 } else {
                     $this->notice(print_r($reanimation_entry, true));
