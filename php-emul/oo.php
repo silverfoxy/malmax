@@ -411,6 +411,7 @@ class OOEmulator extends Emulator
 		
 		$t=explode("\\",$classname);
 		$old_style_constructor=end($t); //strip namespace
+        $predefined = include "hardcoded-vals.php";
 
         foreach ($this->ancestry($classname) as $class) //find the first available constructor
         {
@@ -427,10 +428,9 @@ class OOEmulator extends Emulator
                 $destructor=array($class,"__destruct");
             if (isset($destructor)) break;
         }
-		
-		foreach ($this->ancestry($classname,true) as $class)
+        foreach ($this->ancestry($classname,true) as $class)
 		{
-			if ($this->user_class_exists($class)) {
+			if ($this->user_class_exists($class) and !in_array($class,$predefined)) {
 			    $class_obj = $this->get_class_object($class);
                 foreach ($class_obj->properties as $property_name => $property) {
                     $obj->properties[$property_name] = $property;

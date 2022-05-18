@@ -174,7 +174,13 @@ trait EmulatorStatement
             }
             $keyed=false;
             //OO code here, to prevent double evaluation of list
-            if ($list instanceof EmulatorObject)
+            if ($list instanceof EmulatorObject and in_array('IteratorAggregate', $this->class_implements($list))){
+                $list = $this->run_method($list,'getIterator');
+            }
+            else if ($list instanceof EmulatorObject and in_array('ArrayAccess', $this->class_implements($list))){
+                    $list=$list->properties;
+            }
+            else if ($list instanceof EmulatorObject)
                 $list=$list->properties;
             if (isset($node->keyVar))
             {
@@ -183,13 +189,10 @@ trait EmulatorStatement
                     $this->variable_set($node->keyVar);
                 $keyVar=&$this->variable_reference($node->keyVar);
             }
-            // if (!$this->variable_isset($node->valueVar))
-            // 	$this->variable_set($node->valueVar);
-            // $valueVar=&$this->variable_reference($node->valueVar);
             $this->loop_depth++;
             if ($this->loop_condition())
                 return null; #if already terminated die
-            if ($byref) {
+            if ($byref){
                 if ($list instanceof SymbolicVariable) {
                     // Symbolic foreach
                     for ($i = 0; $i < $this->symbolic_loop_iterations; $i++) {

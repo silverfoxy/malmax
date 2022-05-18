@@ -4,6 +4,7 @@ return array (
     "stdClass",
     "__PHP_Incomplete_Class",
     "Exception",
+    "exception",
     "ErrorException",
     "php_user_filter",
     "Closure",
@@ -16,6 +17,10 @@ return array (
     "ParseError",
     "TypeError",
     "mysqli",
-    "Qrequest"
+    "Qrequest",
+    "ArrayAccess", 
+    "IteratorAggregate",
+    "Countable",
+    "ArrayIterator"
 );
 ?>
