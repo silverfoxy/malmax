@@ -87,7 +87,7 @@ class Emulator
         $this->initenv = $init_environ;
         $this->httpverb = $httpverb;
         $this->init($init_environ, $predefined_constants);
-        echo $correlation_id;
+
         $this->correlation_id = $correlation_id;
         $this->lineLogger = new LineLogger(Utils::$PATH_PREFIX, $this->correlation_id);
         if(!defined('EXECUTED_FROM_PHPUNIT')) {
@@ -567,7 +567,6 @@ class Emulator
         $this->variable_stack['global']=array(); //the first key in var_stack is the global scope
         $this->reference_variables_to_stack();
         foreach ($init_environ as $k=>$v) {
-
             if ($k === '_SESSION') {
                 foreach (array_keys($v) as $key) {
                     $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
