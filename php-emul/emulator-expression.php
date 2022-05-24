@@ -3,6 +3,7 @@
 namespace PHPEmul;
 
 use malmax\ExecutionMode;
+use MongoDB\BSON\Symbol;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\String_;
 
@@ -266,12 +267,13 @@ trait EmulatorExpression {
         }
 		elseif ($node instanceof Node\Expr\PreInc)
 		{
-			return $this->variable_set($node->var,$this->variable_get($node->var)+1);	
+            $variable_value = $this->variable_get($node->var);
+			return $this->variable_set($node->var,$variable_value instanceof SymbolicVariable ? $variable_value : $variable_value+1);
 		}
 		elseif ($node instanceof Node\Expr\PostInc)
 		{
 			$t=$this->variable_get($node->var);
-			$this->variable_set($node->var,$t+1);
+			$this->variable_set($node->var,$t instanceof SymbolicVariable ? $t : $t+1);
 			return $t;
 		}
 		elseif ($node instanceof Node\Expr\PreDec)

@@ -14,6 +14,9 @@ function file_exists_mock($emul, $filename)
         if (sizeof($files) === 0) {
             return false;
         }
+        elseif (sizeof($files) > 10) { // Too many files, potential wildcard
+            return $filename;
+        }
         elseif (sizeof($files) === 1) {
             $file = $files[0];
             if (isset(end($emul->mocked_core_function_args)[0]->value)) {
