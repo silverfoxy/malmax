@@ -366,24 +366,44 @@ trait EmulatorExpression {
 			// 	return $this->evaluate_expression($node->left)**$this->evaluate_expression($node->right);
 			elseif ($node instanceof Node\Expr\BinaryOp\Identical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return false;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l === $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotIdentical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return true;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l !== $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Equal) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return false;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l == $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return true;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l != $r;
@@ -870,4 +890,30 @@ trait EmulatorExpression {
 
 		return null;
 	}
+
+    protected function check_str_type($lhs_expression, $rhs_expression) {
+        if ((is_string($lhs_expression) && $rhs_expression instanceof SymbolicVariable && $rhs_expression->type === String_::class)
+            ||
+            (is_string($rhs_expression) && $lhs_expression instanceof SymbolicVariable && $lhs_expression->type === String_::class)) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    protected function check_str_regex_match($lhs_expression, $rhs_expression) {
+        $str = '';
+        $regex = '';
+        if (is_string($lhs_expression) && $rhs_expression instanceof SymbolicVariable && $rhs_expression->type === String_::class) {
+            $str = $lhs_expression;
+            $regex = $rhs_expression->variable_value;
+        }
+        else if (is_string($rhs_expression) && $lhs_expression instanceof SymbolicVariable && $lhs_expression->type === String_::class) {
+            $str = $rhs_expression;
+            $regex = $lhs_expression->variable_value;
+        }
+        // preg_match returns 1 if there is a match, 0 otherwise, false on error
+        // Escape Regex characters, replace * with .* and wrap the regex with / ... /
+        return preg_match('/'.str_replace('\*', '.*', preg_quote($regex, '/')).'/', $str) === 1;
+    }
 }
