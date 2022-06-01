@@ -150,10 +150,11 @@ trait EmulatorExpression {
                     }
 					elseif (!array_key_exists($index, $resArray))
 						$this->notice("Undefined offset: {$index}");
-					if ($var === null)
+					elseif ($var === null)
 						$outArray[]=$resArray[$index++];
-					elseif (!$resArray instanceof SymbolicVariable)
-						$outArray[] = $this->variable_set($var,$resArray[$index++]);
+                    else {
+                        $outArray[] = $this->variable_set($var, $resArray[$index++]);
+                    }
 				}
 				//return the rest of offsets, they are not assigned to anything by list, but still returned.
 				if (is_array($resArray)) {
@@ -783,7 +784,7 @@ trait EmulatorExpression {
                     array_pop($this->trace);
                     return $r;
                 } else {
-                    $forked_process_info = $this->fork_execution([$realfile => []]);
+                    $forked_process_info = $this->fork_execution([$realfile => range(1, rand(2, 20))]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
