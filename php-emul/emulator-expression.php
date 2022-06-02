@@ -185,23 +185,43 @@ trait EmulatorExpression {
         }
 		elseif ($node instanceof Node\Expr\Array_)
 		{
+            // If any of the array keys are symbolic, set the whole array as symbolic.
+            // Values can be symbolic without as long as there are concrete keys
 			$out=[];
+            // Evaluate keys but skip the assignment if any keys are symbolic
+            $symbolic_key = false;
+            $concrete_values = [];
 			foreach ($node->items as $item)
 			{
 				if (isset($item->key))
 				{
 					$key=$this->evaluate_expression($item->key, $is_symbolic);
+                    if ($symbolic_key === true) {
+                        $value = $this->evaluate_expression($item->value, $is_symbolic);
+                        if (!$value instanceof SymbolicVariable) {
+                            $concrete_values[] = $value;
+                        }
+                        continue;
+                    }
+                    if ($key instanceof SymbolicVariable) {
+                        $symbolic_key = true;
+                        continue;
+                    }
 					if ($item->byRef)
 						$out[$key]=&$this->variable_reference($item->value, $is_symbolic);
 					else
 						$out[$key]=$this->evaluate_expression($item->value, $is_symbolic);
 				}
-				else
-					if ($item->byRef)
-						$out[]=&$this->variable_reference($item->value, $is_symbolic);
-					else
-						$out[]=$this->evaluate_expression($item->value, $is_symbolic);
+				else {
+                    if ($item->byRef)
+                        $out[] =& $this->variable_reference($item->value, $is_symbolic);
+                    else
+                        $out[] = $this->evaluate_expression($item->value, $is_symbolic);
+                }
 			}
+            if ($symbolic_key === true) {
+                $out = new SymbolicVariable('Symbolic array key', '*', Node\Expr\Array_::class, true, $concrete_values);
+            }
 			return $out;
 		}
 		elseif ($node instanceof Node\Expr\Cast)
@@ -914,6 +934,6 @@ trait EmulatorExpression {
         }
         // preg_match returns 1 if there is a match, 0 otherwise, false on error
         // Escape Regex characters, replace * with .* and wrap the regex with / ... /
-        return preg_match('/'.str_replace('\*', '.*', preg_quote($regex, '/')).'/', $str) === 1;
+        return preg_match('#^'.str_replace('\*', '.*', preg_quote($regex)).'$#', $str) === 1;
     }
 }

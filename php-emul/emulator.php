@@ -1029,7 +1029,7 @@ class Emulator
             // Skipping duplicate asterisks
         }
         if ($prepare_preg_replace) {
-            $summarized_regex = '/^' . str_replace('\.\*', '.*', preg_quote($summarized_regex)) . '$/';
+            $summarized_regex = '#^' . str_replace('\.\*', '.*', preg_quote($summarized_regex)) . '$#';
         }
         return $summarized_regex;
     }
