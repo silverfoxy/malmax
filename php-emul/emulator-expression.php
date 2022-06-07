@@ -71,130 +71,109 @@ class EmulatorClosure {
 /**
  * Evaluates an expression for the emulator
  */
-trait EmulatorExpression {
+trait EmulatorExpression
+{
 
-	
-	protected function expression_preprocess($node)
-	{
-		$this->current_node=$node;
-		if (is_object($node) and method_exists($node, "getLine") and $node->getLine()!=$this->current_line)
-		{
-			$this->current_line=$node->getLine();
-			$this->verbose("Line {$this->current_line} (expression)".PHP_EOL,4);
-		}	
-	}
 
-	/**
-	 * Evaluate all nodes of type Node\Expr and return appropriate value
-	 * This is the core of the emulator/interpreter.
-	 * @param  Node $ast Abstract Syntax Tree node
-	 * @return mixed      value
-	 */
-	protected function evaluate_expression($node, &$is_symbolic = false)
-	{
-		if ($this->terminated) return null;
-		$this->expression_preprocess($node);		
-		if ($node===null)
-			return null;
-		elseif ($node instanceof SymbolicVariable) {
+    protected function expression_preprocess($node)
+    {
+        $this->current_node = $node;
+        if (is_object($node) and method_exists($node, "getLine") and $node->getLine() != $this->current_line) {
+            $this->current_line = $node->getLine();
+            $this->verbose("Line {$this->current_line} (expression)" . PHP_EOL, 4);
+        }
+    }
+
+    /**
+     * Evaluate all nodes of type Node\Expr and return appropriate value
+     * This is the core of the emulator/interpreter.
+     * @param Node $ast Abstract Syntax Tree node
+     * @return mixed      value
+     */
+    protected function evaluate_expression($node, &$is_symbolic = false)
+    {
+        if ($this->terminated) return null;
+        $this->expression_preprocess($node);
+        if ($node === null)
+            return null;
+        elseif ($node instanceof SymbolicVariable) {
             $is_symbolic = true;
             return $node;
-        }
-		elseif (is_array($node)) {
+        } elseif (is_array($node)) {
             return $node;
-            $this->error("Did not expect array node!",$node);
-        }
-		elseif ($node instanceof Node\Expr\FuncCall)
-		{
-			$name=$this->name($node);
-			$ret = $this->call_function($name,$node->args);
-			if ($ret instanceof SymbolicVariable) {
-			    $is_symbolic = true;
+            $this->error("Did not expect array node!", $node);
+        } elseif ($node instanceof Node\Expr\FuncCall) {
+            $name = $this->name($node);
+            $ret = $this->call_function($name, $node->args);
+            if ($ret instanceof SymbolicVariable) {
+                $is_symbolic = true;
             }
-			return $ret;
-			
-		}
+            return $ret;
 
-		elseif ($node instanceof Node\Expr\AssignRef)
-		{
-		    $expr_value = $this->evaluate_expression($node->expr);
-		    if (!($expr_value instanceof SymbolicVariable)) {
+        } elseif ($node instanceof Node\Expr\AssignRef) {
+            $expr_value = $this->evaluate_expression($node->expr);
+            if (!($expr_value instanceof SymbolicVariable)) {
                 if (!$this->variable_isset($node->expr)) //referencing creates
                     $this->variable_set($node->expr);
-                $originalVar=&$this->variable_reference($node->expr,$success);
+                $originalVar =& $this->variable_reference($node->expr, $success);
                 if ($success)
-                    $this->variable_set_byref($node->var,$originalVar);
+                    $this->variable_set_byref($node->var, $originalVar);
                 else
                     $this->warning("Can not assign by reference, the referenced variable does not exist");
+            } else {
+                $this->variable_set($node->var, $expr_value);
             }
-		    else {
-		        $this->variable_set($node->var, $expr_value);
-            }
-		}
-
-		elseif ($node instanceof Node\Expr\Assign)
-		{
-			if ($node->var instanceof Node\Expr\List_) //list(x,y)=f()
-			{
-				$resArray=$this->evaluate_expression($node->expr, $is_symbolic);
-				// 	PHP's list uses numeric iteration over the resArray. 
-				// 	This means that list($a,$b)=[1,'a'=>'b'] will error "Undefined offset: 1"
-				// 	because it wants to assign $resArray[1] to $b. Thus we use index here.
-				$index=0;
-				$outArray=[];
-				foreach ($node->var->items as $var)
-				{
-				    if ($resArray instanceof SymbolicVariable) {
-				        $outArray[] = $this->variable_set($var, clone $resArray);
-                    }
-					elseif (!array_key_exists($index, $resArray))
-						$this->notice("Undefined offset: {$index}");
-					elseif ($var === null)
-						$outArray[]=$resArray[$index++];
+        } elseif ($node instanceof Node\Expr\Assign) {
+            if ($node->var instanceof Node\Expr\List_) //list(x,y)=f()
+            {
+                $resArray = $this->evaluate_expression($node->expr, $is_symbolic);
+                // 	PHP's list uses numeric iteration over the resArray.
+                // 	This means that list($a,$b)=[1,'a'=>'b'] will error "Undefined offset: 1"
+                // 	because it wants to assign $resArray[1] to $b. Thus we use index here.
+                $index = 0;
+                $outArray = [];
+                foreach ($node->var->items as $var) {
+                    if ($resArray instanceof SymbolicVariable) {
+                        $outArray[] = $this->variable_set($var, clone $resArray);
+                    } elseif (!array_key_exists($index, $resArray))
+                        $this->notice("Undefined offset: {$index}");
+                    elseif ($var === null)
+                        $outArray[] = $resArray[$index++];
                     else {
                         $outArray[] = $this->variable_set($var, $resArray[$index++]);
                     }
-				}
-				//return the rest of offsets, they are not assigned to anything by list, but still returned.
-				if (is_array($resArray)) {
-                    while ($index<count($resArray))
-                    {
+                }
+                //return the rest of offsets, they are not assigned to anything by list, but still returned.
+                if (is_array($resArray)) {
+                    while ($index < count($resArray)) {
                         if (!isset($resArray[$index]))
                             $this->notice("Undefined offset: {$index}");
-                        $outArray[]=$resArray[$index++];
+                        $outArray[] = $resArray[$index++];
                     }
                 }
-				return $outArray;
-			}
-			else
-			{
-				return $this->variable_set($node->var,$this->evaluate_expression($node->expr));
-			}
-		}
-		elseif ($node instanceof Node\Expr\ArrayDimFetch) {
+                return $outArray;
+            } else {
+                return $this->variable_set($node->var, $this->evaluate_expression($node->expr));
+            }
+        } elseif ($node instanceof Node\Expr\ArrayDimFetch) {
             //access multidimensional arrays $x[...][..][...]
             $array_dim_fetch = $this->variable_get($node); //should not create
             if ($array_dim_fetch instanceof SymbolicVariable) {
                 $is_symbolic = true;
                 return $array_dim_fetch;
-            }
-            else {
+            } else {
                 return $array_dim_fetch;
             }
-        }
-		elseif ($node instanceof Node\Expr\Array_)
-		{
+        } elseif ($node instanceof Node\Expr\Array_) {
             // If any of the array keys are symbolic, set the whole array as symbolic.
             // Values can be symbolic without as long as there are concrete keys
-			$out=[];
+            $out = [];
             // Evaluate keys but skip the assignment if any keys are symbolic
             $symbolic_key = false;
             $concrete_values = [];
-			foreach ($node->items as $item)
-			{
-				if (isset($item->key))
-				{
-					$key=$this->evaluate_expression($item->key, $is_symbolic);
+            foreach ($node->items as $item) {
+                if (isset($item->key)) {
+                    $key = $this->evaluate_expression($item->key, $is_symbolic);
                     if ($symbolic_key === true) {
                         $value = $this->evaluate_expression($item->value, $is_symbolic);
                         if (!$value instanceof SymbolicVariable) {
@@ -206,45 +185,41 @@ trait EmulatorExpression {
                         $symbolic_key = true;
                         continue;
                     }
-					if ($item->byRef)
-						$out[$key]=&$this->variable_reference($item->value, $is_symbolic);
-					else
-						$out[$key]=$this->evaluate_expression($item->value, $is_symbolic);
-				}
-				else {
+                    if ($item->byRef)
+                        $out[$key] =& $this->variable_reference($item->value, $is_symbolic);
+                    else
+                        $out[$key] = $this->evaluate_expression($item->value, $is_symbolic);
+                } else {
                     if ($item->byRef)
                         $out[] =& $this->variable_reference($item->value, $is_symbolic);
                     else
                         $out[] = $this->evaluate_expression($item->value, $is_symbolic);
                 }
-			}
+            }
             if ($symbolic_key === true) {
                 $out = new SymbolicVariable('Symbolic array key', '*', Node\Expr\Array_::class, true, $concrete_values);
             }
-			return $out;
-		}
-		elseif ($node instanceof Node\Expr\Cast)
-		{
-		    $expr = $this->evaluate_expression($node->expr);
-		    if ($expr instanceof SymbolicVariable) {
-		        return $expr;
+            return $out;
+        } elseif ($node instanceof Node\Expr\Cast) {
+            $expr = $this->evaluate_expression($node->expr);
+            if ($expr instanceof SymbolicVariable) {
+                return $expr;
             }
-			if ($node instanceof Node\Expr\Cast\Int_)
-				return (int)$expr;
-			elseif ($node instanceof Node\Expr\Cast\Array_)
-				return (array)$expr;
-			elseif ($node instanceof Node\Expr\Cast\Double)
-				return (double)$expr;
-			elseif ($node instanceof Node\Expr\Cast\Bool_)
-				return (bool)$expr;
-			elseif ($node instanceof Node\Expr\Cast\String_)
-				return (string)$expr;
-			// elseif ($node instanceof Node\Expr\Cast\Object_)
-			// 	return (object)$this->evaluate_expression($node->expr);
-			else
-				$this->error("Unknown cast: ",$node);
-		}
-		elseif ($node instanceof Node\Expr\BooleanNot) {
+            if ($node instanceof Node\Expr\Cast\Int_)
+                return (int)$expr;
+            elseif ($node instanceof Node\Expr\Cast\Array_)
+                return (array)$expr;
+            elseif ($node instanceof Node\Expr\Cast\Double)
+                return (double)$expr;
+            elseif ($node instanceof Node\Expr\Cast\Bool_)
+                return (bool)$expr;
+            elseif ($node instanceof Node\Expr\Cast\String_)
+                return (string)$expr;
+            // elseif ($node instanceof Node\Expr\Cast\Object_)
+            // 	return (object)$this->evaluate_expression($node->expr);
+            else
+                $this->error("Unknown cast: ", $node);
+        } elseif ($node instanceof Node\Expr\BooleanNot) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
                 $result = clone $expr;
@@ -254,10 +229,10 @@ trait EmulatorExpression {
             if ($expr instanceof \stdClass) {
                 return false;
             } else {
-                return !$this->evaluate_expression($expr, $is_symbolic);            }
+                return !$this->evaluate_expression($expr, $is_symbolic);
+            }
 
-        }
-		elseif ($node instanceof Node\Expr\BitwiseNot) {
+        } elseif ($node instanceof Node\Expr\BitwiseNot) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
                 $result = clone $expr;
@@ -265,9 +240,7 @@ trait EmulatorExpression {
                 return $result;
             }
             return ~$this->evaluate_expression($expr, $is_symbolic);
-        }
-		
-		elseif ($node instanceof Node\Expr\UnaryMinus) {
+        } elseif ($node instanceof Node\Expr\UnaryMinus) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
                 $result = clone $expr;
@@ -275,8 +248,7 @@ trait EmulatorExpression {
                 return $result;
             }
             return -$this->evaluate_expression($expr, $is_symbolic);
-        }
-		elseif ($node instanceof Node\Expr\UnaryPlus) {
+        } elseif ($node instanceof Node\Expr\UnaryPlus) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
                 $result = clone $expr;
@@ -284,205 +256,175 @@ trait EmulatorExpression {
                 return $result;
             }
             return +$this->evaluate_expression($expr, $is_symbolic);
-        }
-		elseif ($node instanceof Node\Expr\PreInc)
-		{
+        } elseif ($node instanceof Node\Expr\PreInc) {
             $variable_value = $this->variable_get($node->var);
-			return $this->variable_set($node->var,$variable_value instanceof SymbolicVariable ? $variable_value : $variable_value+1);
-		}
-		elseif ($node instanceof Node\Expr\PostInc)
-		{
-			$t=$this->variable_get($node->var);
-			$this->variable_set($node->var,$t instanceof SymbolicVariable ? $t : $t+1);
-			return $t;
-		}
-		elseif ($node instanceof Node\Expr\PreDec)
-		{
-			return $this->variable_set($node->var,$this->variable_get($node->var)-1);	
-		}
-		elseif ($node instanceof Node\Expr\PostDec)
-		{
-			$t=$this->variable_get($node->var);
-			$this->variable_set($node->var,$t-1);
-			return $t;
-		}
-		elseif ($node instanceof Node\Expr\AssignOp)
-		{
-			$var=&$this->variable_reference($node->var); //TODO: use variable_set and get here instead
-			$val=$this->evaluate_expression($node->expr, $is_symbolic);
+            return $this->variable_set($node->var, $variable_value instanceof SymbolicVariable ? $variable_value : $variable_value + 1);
+        } elseif ($node instanceof Node\Expr\PostInc) {
+            $t = $this->variable_get($node->var);
+            $this->variable_set($node->var, $t instanceof SymbolicVariable ? $t : $t + 1);
+            return $t;
+        } elseif ($node instanceof Node\Expr\PreDec) {
+            return $this->variable_set($node->var, $this->variable_get($node->var) - 1);
+        } elseif ($node instanceof Node\Expr\PostDec) {
+            $t = $this->variable_get($node->var);
+            $this->variable_set($node->var, $t - 1);
+            return $t;
+        } elseif ($node instanceof Node\Expr\AssignOp) {
+            $var =& $this->variable_reference($node->var); //TODO: use variable_set and get here instead
+            $val = $this->evaluate_expression($node->expr, $is_symbolic);
             if ($val instanceof SymbolicVariable) {
                 // Performing AssignOp when RHS is symbolic would cast the RHS to string (eg '*')
                 return $var = $val;
             }
-			if ($node instanceof Node\Expr\AssignOp\Plus)
-				return $var+=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\Minus)
-				return $var-=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\Mod)
-				return $var%=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\Mul)
-				return $var*=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\Div)
-				return $var/=$val;
-			// elseif ($node instanceof Node\Expr\AssignOp\Pow)
-			// 	return $this->variables[$this->name($node->var)]**=$this->evaluate_expression($node->expr);
-			elseif ($node instanceof Node\Expr\AssignOp\ShiftLeft)
-				return $var<<=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\ShiftRight)
-				return $var>>=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\Concat)
-				return $var.=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\BitwiseAnd)
-				return $var&=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\BitwiseOr)
-				return $var|=$val;
-			elseif ($node instanceof Node\Expr\AssignOp\BitwiseXor)
-				return $var^=$val;
-		}
-		elseif ($node instanceof Node\Expr\BinaryOp)
-		{
+            if ($node instanceof Node\Expr\AssignOp\Plus)
+                return $var += $val;
+            elseif ($node instanceof Node\Expr\AssignOp\Minus)
+                return $var -= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\Mod)
+                return $var %= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\Mul)
+                return $var *= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\Div)
+                return $var /= $val;
+            // elseif ($node instanceof Node\Expr\AssignOp\Pow)
+            // 	return $this->variables[$this->name($node->var)]**=$this->evaluate_expression($node->expr);
+            elseif ($node instanceof Node\Expr\AssignOp\ShiftLeft)
+                return $var <<= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\ShiftRight)
+                return $var >>= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\Concat)
+                return $var .= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\BitwiseAnd)
+                return $var &= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\BitwiseOr)
+                return $var |= $val;
+            elseif ($node instanceof Node\Expr\AssignOp\BitwiseXor)
+                return $var ^= $val;
+        } elseif ($node instanceof Node\Expr\BinaryOp) {
             if (!$node instanceof Node\Expr\BinaryOp\Coalesce) {
-                $l=$this->evaluate_expression($node->left, $is_symbolic); #can't eval right here, prevents short circuit reliant code
+                $l = $this->evaluate_expression($node->left, $is_symbolic); #can't eval right here, prevents short circuit reliant code
             }
             if (!($node instanceof Node\Expr\BinaryOp\BooleanAnd ||
-                  $node instanceof Node\Expr\BinaryOp\BooleanOr  ||
-                  $node instanceof Node\Expr\BinaryOp\LogicalAnd ||
-                  $node instanceof Node\Expr\BinaryOp\LogicalOr)) {
+                $node instanceof Node\Expr\BinaryOp\BooleanOr ||
+                $node instanceof Node\Expr\BinaryOp\LogicalAnd ||
+                $node instanceof Node\Expr\BinaryOp\LogicalOr)) {
                 // No short circuiting is involved and we can evaluate the right hand sight now
                 $r = $this->evaluate_expression($node->right, $is_symbolic);
             }
-			if ($node instanceof Node\Expr\BinaryOp\Plus) {
+            if ($node instanceof Node\Expr\BinaryOp\Plus) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
-                return $l+$r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Div) {
+                return $l + $r;
+            } elseif ($node instanceof Node\Expr\BinaryOp\Div) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
-                return $l/$r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Minus) {
+                return $l / $r;
+            } elseif ($node instanceof Node\Expr\BinaryOp\Minus) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
-                return $l-$r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Mul) {
+                return $l - $r;
+            } elseif ($node instanceof Node\Expr\BinaryOp\Mul) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
-                return $l*$r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Mod) {
+                return $l * $r;
+            } elseif ($node instanceof Node\Expr\BinaryOp\Mod) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l % $r;
             }
-			// elseif ($node instanceof Node\Expr\BinaryOp\Pow)
-			// 	return $this->evaluate_expression($node->left)**$this->evaluate_expression($node->right);
-			elseif ($node instanceof Node\Expr\BinaryOp\Identical) {
+            // elseif ($node instanceof Node\Expr\BinaryOp\Pow)
+            // 	return $this->evaluate_expression($node->left)**$this->evaluate_expression($node->right);
+            elseif ($node instanceof Node\Expr\BinaryOp\Identical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
                     if ($this->check_str_type($l, $r) === true) {
                         if ($this->check_str_regex_match($l, $r) === false) {
                             return false;
                         }
                     }
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l === $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\NotIdentical) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\NotIdentical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
                     if ($this->check_str_type($l, $r) === true) {
                         if ($this->check_str_regex_match($l, $r) === false) {
                             return true;
                         }
                     }
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l !== $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Equal) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\Equal) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
                     if ($this->check_str_type($l, $r) === true) {
                         if ($this->check_str_regex_match($l, $r) === false) {
                             return false;
                         }
                     }
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l == $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\NotEqual) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\NotEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
                     if ($this->check_str_type($l, $r) === true) {
                         if ($this->check_str_regex_match($l, $r) === false) {
                             return true;
                         }
                     }
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l != $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Smaller) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\Smaller) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l < $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\SmallerOrEqual) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\SmallerOrEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l <= $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Greater) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\Greater) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l > $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\GreaterOrEqual) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\GreaterOrEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l >= $r;
-            }
-            elseif ($node instanceof Node\Expr\BinaryOp\Spaceship) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\Spaceship) {
                 if ($l instanceof SymbolicVariable) {
                     return $l;
-                }
-                elseif ($r instanceof SymbolicVariable) {
+                } elseif ($r instanceof SymbolicVariable) {
                     return $r;
                 }
                 if ($l < $r) {
                     return -1;
-                }
-                elseif ($l > $r) {
+                } elseif ($l > $r) {
                     return 1;
-                }
-                else {
+                } else {
                     return 0;
                 }
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
-			    if ($l) {
-			        $r = $this->evaluate_expression($node->right, $is_symbolic);
-			        if ($is_symbolic || $r instanceof SymbolicVariable) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
+                if ($l) {
+                    $r = $this->evaluate_expression($node->right, $is_symbolic);
+                    if ($is_symbolic || $r instanceof SymbolicVariable) {
                         return clone $r;
                     }
                     return $l and $r;
+                } else {
+                    return false;
                 }
-			    else {
-			        return false;
-                }
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
                 $this->error_silence();
-                $l=$this->evaluate_expression($node->left, $is_symbolic);
+                $l = $this->evaluate_expression($node->left, $is_symbolic);
                 $this->error_restore();
                 if ($l instanceof SymbolicVariable) {
                     $forked_process_info = $this->fork_execution([]);
@@ -497,118 +439,98 @@ trait EmulatorExpression {
                 } else {
                     return $r;
                 }
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\LogicalOr) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\LogicalOr) {
                 if ($l) {
                     return true;
-                }
-                else {
+                } else {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
                     if ($is_symbolic || $r instanceof SymbolicVariable) {
                         return clone $r;
                     }
                     return $l or $r;
                 }
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\LogicalXor) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\LogicalXor) {
                 return $l xor $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\BooleanOr) {
-			    if ($l && !$l instanceof SymbolicVariable) {
-			        return true;
-                }
-			    else {
+            } elseif ($node instanceof Node\Expr\BinaryOp\BooleanOr) {
+                if ($l && !$l instanceof SymbolicVariable) {
+                    return true;
+                } else {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
                     if ($r instanceof SymbolicVariable) {
                         return clone $r;
-                    }
-                    elseif($l instanceof SymbolicVariable) {
+                    } elseif ($l instanceof SymbolicVariable) {
                         return clone $l;
-                    }
-                    else {
+                    } else {
                         return $l || $r;
                     }
                 }
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\BooleanAnd) {
-			    if ($l) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\BooleanAnd) {
+                if ($l) {
                     $r = $this->evaluate_expression($node->right, $is_symbolic);
                     if ($r instanceof SymbolicVariable) {
                         return clone $r;
-                    }
-                    elseif ($r == false) {
+                    } elseif ($r == false) {
                         return false;
-                    }
-                    elseif ($l instanceof SymbolicVariable) {
+                    } elseif ($l instanceof SymbolicVariable) {
                         return clone $l;
                     }
                     return true;
+                } else {
+                    return false;
                 }
-			    else {
-			        return false;
-                }
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseAnd) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\BitwiseAnd) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l & $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseOr) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\BitwiseOr) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l | $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\BitwiseXor) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\BitwiseXor) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l ^ $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\ShiftLeft) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\ShiftLeft) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l << $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\ShiftRight) {
+            } elseif ($node instanceof Node\Expr\BinaryOp\ShiftRight) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
-                    return clone ($l instanceof SymbolicVariable ? $l : $r);
+                    return clone($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l >> $r;
-            }
-			elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
-			    if ($l instanceof  SymbolicVariable && $r instanceof SymbolicVariable) {
-			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value, String_::class);
+            } elseif ($node instanceof Node\Expr\BinaryOp\Concat) {
+                if ($l instanceof SymbolicVariable && $r instanceof SymbolicVariable) {
+                    return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value, String_::class);
                 }
-			    if ($l instanceof SymbolicVariable) {
-			        return new SymbolicVariable("symbolic concat", $l->variable_value . $r, String_::class);
-                } else if ($r instanceof  SymbolicVariable) {
+                if ($l instanceof SymbolicVariable) {
+                    return new SymbolicVariable("symbolic concat", $l->variable_value . $r, String_::class);
+                } else if ($r instanceof SymbolicVariable) {
                     return new SymbolicVariable("symbolic concat", $l . $r->variable_value, String_::class);
                 }
 
                 return $l . $r;
             }
-			// elseif ($node instanceof Node\Expr\BinaryOp\Spaceship)
-			// 	return $this->evaluate_expression($node->left)<=>$this->evaluate_expression($node->right);
-			else
-				$this->error("Unknown binary op: ",$node);
-		}
-		elseif ($node instanceof Node\Scalar)
-		{
-			if ($node instanceof String_)
-				return $node->value;
-			elseif ($node instanceof Node\Scalar\EncapsedStringPart)
+            // elseif ($node instanceof Node\Expr\BinaryOp\Spaceship)
+            // 	return $this->evaluate_expression($node->left)<=>$this->evaluate_expression($node->right);
+            else
+                $this->error("Unknown binary op: ", $node);
+        } elseif ($node instanceof Node\Scalar) {
+            if ($node instanceof String_)
                 return $node->value;
-			elseif ($node instanceof Node\Scalar\DNumber)
-				return $node->value;
-			elseif ($node instanceof Node\Scalar\LNumber)
-				return $node->value;
-			elseif ($node instanceof Node\Scalar\Encapsed)
-			{
-				$res="";
-				foreach ($node->parts as $part) {
+            elseif ($node instanceof Node\Scalar\EncapsedStringPart)
+                return $node->value;
+            elseif ($node instanceof Node\Scalar\DNumber)
+                return $node->value;
+            elseif ($node instanceof Node\Scalar\LNumber)
+                return $node->value;
+            elseif ($node instanceof Node\Scalar\Encapsed) {
+                $res = "";
+                foreach ($node->parts as $part) {
                     if (is_string($part)) {
                         $res .= $part;
                     } else {
@@ -618,192 +540,156 @@ trait EmulatorExpression {
                 if ($is_symbolic) {
                     return new SymbolicVariable('Encapsed', $res);
                 }
-				return $res;
-			}
-			elseif ($node instanceof Node\Scalar\MagicConst)
-			{
-				if ($node instanceof Node\Scalar\MagicConst\File)
-					return $this->current_file;
-				elseif ($node instanceof Node\Scalar\MagicConst\Dir)
-					return dirname($this->current_file);
-				elseif ($node instanceof Node\Scalar\MagicConst\Line)
-					return $node->getLine();
-				elseif ($node instanceof Node\Scalar\MagicConst\Function_)
-					return $this->current_function;
-				elseif ($node instanceof Node\Scalar\MagicConst\Class_)
-					return $this->current_self;
-				elseif ($node instanceof Node\Scalar\MagicConst\Method)
-					return $this->current_method;
-				elseif ($node instanceof Node\Scalar\MagicConst\Namespace_)
-					return $this->current_namespace;
-				elseif ($node instanceof Node\Scalar\MagicConst\Trait_)
-					return $this->current_trait;
-			}
-			else
-				$this->error("Unknown scalar node: ",$node);
-		}
-		// elseif ($node instanceof Node\Expr\ArrayItem); //this is handled in Array_ implicitly
-		
-		elseif ($node instanceof Node\Expr\Variable)
-		{
-		    $target_var = $this->variable_get($node); //should not be created on access
+                return $res;
+            } elseif ($node instanceof Node\Scalar\MagicConst) {
+                if ($node instanceof Node\Scalar\MagicConst\File)
+                    return $this->current_file;
+                elseif ($node instanceof Node\Scalar\MagicConst\Dir)
+                    return dirname($this->current_file);
+                elseif ($node instanceof Node\Scalar\MagicConst\Line)
+                    return $node->getLine();
+                elseif ($node instanceof Node\Scalar\MagicConst\Function_)
+                    return $this->current_function;
+                elseif ($node instanceof Node\Scalar\MagicConst\Class_)
+                    return $this->current_self;
+                elseif ($node instanceof Node\Scalar\MagicConst\Method)
+                    return $this->current_method;
+                elseif ($node instanceof Node\Scalar\MagicConst\Namespace_)
+                    return $this->current_namespace;
+                elseif ($node instanceof Node\Scalar\MagicConst\Trait_)
+                    return $this->current_trait;
+            } else
+                $this->error("Unknown scalar node: ", $node);
+        } // elseif ($node instanceof Node\Expr\ArrayItem); //this is handled in Array_ implicitly
+
+        elseif ($node instanceof Node\Expr\Variable) {
+            $target_var = $this->variable_get($node); //should not be created on access
             if ($target_var instanceof SymbolicVariable) {
                 $is_symbolic = true;
             }
-			return $target_var;
-		}
-		elseif ($node instanceof Node\Expr\ConstFetch)
-		{
-			return $this->constant_get($this->name($node->name));
+            return $target_var;
+        } elseif ($node instanceof Node\Expr\ConstFetch) {
+            return $this->constant_get($this->name($node->name));
 
-		}
-		elseif ($node instanceof Node\Expr\ErrorSuppress)
-		{
-			// $error_reporting=error_reporting();
-			// error_reporting(0);
-			$this->error_silence();
-			$res=$this->evaluate_expression($node->expr, $is_symbolic);
-			$this->error_restore(); 
-			return $res;
-		} 
-		elseif ($node instanceof Node\Expr\Exit_)
-		{
-			$this->verbose(sprintf("Terminated at %s:%d.\n",substr($this->current_file,strlen($this->folder)),$this->current_line));
-			if (isset($node->expr))
-			{
-				$res=$this->evaluate_expression($node->expr, $is_symbolic);
-				if (!is_int($res))
-					$this->output($res);
-				else
-					$this->termination_value=$res;
-			}
-			else
-				$res=null;
-
-			$this->terminated=true;	
-			return $res;
-		}
-		elseif ($node instanceof Node\Expr\Empty_)
-		{
+        } elseif ($node instanceof Node\Expr\ErrorSuppress) {
+            // $error_reporting=error_reporting();
+            // error_reporting(0);
             $this->error_silence();
-		    $expr_value = $this->evaluate_expression($node->expr, $is_symbolic);
-		    if ($expr_value instanceof SymbolicVariable) {
-                $this->error_restore();
-		        return $expr_value->isset instanceof SymbolicVariable ? $expr_value->isset : !$expr_value->isset;
-            }
-			//return true if not isset, or if false. only supports variables, and not expressions
-            $res = false;
-		    if (is_array($expr_value))
-            {
-                $res = count($expr_value) == 0;
+            $res = $this->evaluate_expression($node->expr, $is_symbolic);
+            $this->error_restore();
+            return $res;
+        } elseif ($node instanceof Node\Expr\Exit_) {
+            $this->verbose(sprintf("Terminated at %s:%d.\n", substr($this->current_file, strlen($this->folder)), $this->current_line));
+            if (isset($node->expr)) {
+                $res = $this->evaluate_expression($node->expr, $is_symbolic);
+                if (!is_int($res))
+                    $this->output($res);
+                else
+                    $this->termination_value = $res;
             } else
-            {
+                $res = null;
+
+            $this->terminated = true;
+            return $res;
+        } elseif ($node instanceof Node\Expr\Empty_) {
+            $this->error_silence();
+            $expr_value = $this->evaluate_expression($node->expr, $is_symbolic);
+            if ($expr_value instanceof SymbolicVariable) {
+                $this->error_restore();
+                return $expr_value->isset instanceof SymbolicVariable ? $expr_value->isset : !$expr_value->isset;
+            }
+            //return true if not isset, or if false. only supports variables, and not expressions
+            $res = false;
+            if (is_array($expr_value)) {
+                $res = count($expr_value) == 0;
+            } else {
                 $res = (!$this->variable_isset($node->expr) or ($expr_value == null));
             }
-			$this->error_restore();
-			return $res;
-		}
-		elseif ($node instanceof Node\Expr\Isset_)
-		{
-			#FIXME: if the name expression is multipart, and one part of it also doesn't exist this warns. Does PHP too?
-			//return false if not isset, or if null
-			$res=true;
-			$result_is_symbolic = false;
-			foreach ($node->vars as $var)
-			{
-				$var_isset = $this->variable_isset($var);
+            $this->error_restore();
+            return $res;
+        } elseif ($node instanceof Node\Expr\Isset_) {
+            #FIXME: if the name expression is multipart, and one part of it also doesn't exist this warns. Does PHP too?
+            //return false if not isset, or if null
+            $res = true;
+            $result_is_symbolic = false;
+            foreach ($node->vars as $var) {
+                $var_isset = $this->variable_isset($var);
                 if ($var_isset instanceof SymbolicVariable) {
                     $res = $var_isset->isset;
                     $result_is_symbolic = true;
+                } elseif (!$var_isset) {
+                    $res = false;
+                    break;
                 }
-				elseif (!$var_isset)
-				{
-					$res=false;
-					break;
-				}
-			}
-			if ($res && $result_is_symbolic) {
-			    // If all the concolic variables are set, and we also have a Symbolic variable, return Symbolic variable
+            }
+            if ($res && $result_is_symbolic) {
+                // If all the concolic variables are set, and we also have a Symbolic variable, return Symbolic variable
                 $is_symbolic = true;
                 return $res;
             }
             return $res;
-		}
-		elseif ($node instanceof Node\Expr\Eval_)
-		{
-			
-			$this->eval_depth++;
-			$this->verbose("Now running Eval code...".PHP_EOL);
-			$code=$this->evaluate_expression($node->expr);
-			
-			$bu=$this->current_namespace;
-			$this->current_namespace="";	
-			
-			$ast=$this->parser->parse('<?php '.$code);
-			$res=$this->run_code($ast);
-			#TODO: (not important) check whether active namespaces (i.e. uses) are discarded in eval as well or not
-			$this->current_namespace=$bu;
-			$this->eval_depth--;
-			return $res;
-		}
-		elseif ($node instanceof Node\Expr\ShellExec)
-		{
-				$res="";
-				foreach ($node->parts as $part)	
-					if (is_string($part))
-						$res.=$part;
-					else
-						$res.=$this->evaluate_expression($part, $is_symbolic);
+        } elseif ($node instanceof Node\Expr\Eval_) {
 
-				return shell_exec($res);
-		}
-        elseif ($node instanceof Node\Expr\Yield_)
-        {
+            $this->eval_depth++;
+            $this->verbose("Now running Eval code..." . PHP_EOL);
+            $code = $this->evaluate_expression($node->expr);
+
+            $bu = $this->current_namespace;
+            $this->current_namespace = "";
+
+            $ast = $this->parser->parse('<?php ' . $code);
+            $res = $this->run_code($ast);
+            #TODO: (not important) check whether active namespaces (i.e. uses) are discarded in eval as well or not
+            $this->current_namespace = $bu;
+            $this->eval_depth--;
+            return $res;
+        } elseif ($node instanceof Node\Expr\ShellExec) {
+            $res = "";
+            foreach ($node->parts as $part)
+                if (is_string($part))
+                    $res .= $part;
+                else
+                    $res .= $this->evaluate_expression($part, $is_symbolic);
+
+            return shell_exec($res);
+        } elseif ($node instanceof Node\Expr\Yield_) {
             #Implement yield
             $this->yield_return($node);
 
             #$this->error("Yield node not implemented: ",$node);
-        }
-		elseif ($node instanceof Node\Expr\Instanceof_)
-		{
-			$var=$this->evaluate_expression($node->expr, $is_symbolic);
-			$classname=$this->name($node->class);
-			return $var instanceof $classname;
-		}
-		elseif ($node instanceof Node\Expr\Print_)
-		{
-			$out=$this->evaluate_expression($node->expr, $is_symbolic);
-			$this->output($out);	
-			return $out;
-		}
-		elseif ($node instanceof Node\Expr\Include_)
-		{
-			$type=$node->type; //1:include,2:include_once,3:require,4:require_once
-			$names=[null,'include','include_once','require','require_once'];
-			$name=$names[$type];
-			$file = $this->evaluate_expression($node->expr, $is_symbolic);
-			$realfiles = array();
+        } elseif ($node instanceof Node\Expr\Instanceof_) {
+            $var = $this->evaluate_expression($node->expr, $is_symbolic);
+            $classname = $this->name($node->class);
+            return $var instanceof $classname;
+        } elseif ($node instanceof Node\Expr\Print_) {
+            $out = $this->evaluate_expression($node->expr, $is_symbolic);
+            $this->output($out);
+            return $out;
+        } elseif ($node instanceof Node\Expr\Include_) {
+            $type = $node->type; //1:include,2:include_once,3:require,4:require_once
+            $names = [null, 'include', 'include_once', 'require', 'require_once'];
+            $name = $names[$type];
+            $file = $this->evaluate_expression($node->expr, $is_symbolic);
+            $realfiles = array();
 
-			if ($file instanceof SymbolicVariable) {
+            if ($file instanceof SymbolicVariable) {
                 // Get the list of candidate files for include statement
                 $candidates = $this->get_candidate_files($file);
-			    foreach ($candidates as $candid)
-                {
+                foreach ($candidates as $candid) {
                     array_push($realfiles, $this->get_include_file_path($candid));
                 }
             } else {
                 $realfiles = array($this->get_include_file_path($file));
             }
 
-			$candidate_files = count($realfiles);
-			$processed_files = 1;
-			foreach ($realfiles as $realfile)
-            {
+            $candidate_files = count($realfiles);
+            $processed_files = 1;
+            foreach ($realfiles as $realfile) {
                 if (!$file instanceof SymbolicVariable) {
                     /* Symbolic files are always mapped to existing files on the file system as per
                      * "get_candidate_files"s implementation
                      */
-                    if ($type%2==0) //once
+                    if ($type % 2 == 0) //once
                         if (isset($this->included_files[$realfile])) {
                             return true;
                         }
@@ -819,48 +705,42 @@ trait EmulatorExpression {
 
                 if ($processed_files === $candidate_files) {
                     // No need to fork for single or last file to be included
-                    array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
-                        "args"=>[$realfile]));
-                    $r=$this->run_file($realfile);
+                    array_push($this->trace, (object)array("type" => "", "function" => $name, "file" => $this->current_file, "line" => $this->current_line,
+                        "args" => [$realfile]));
+                    $r = $this->run_file($realfile);
                     array_pop($this->trace);
                     return $r;
                 } else {
                     $forked_process_info = $this->fork_execution([$realfile => range(1, rand(2, 20))]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
-                        array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
-                            "args"=>[$realfile]));
-                        $r=$this->run_file($realfile);
+                        array_push($this->trace, (object)array("type" => "", "function" => $name, "file" => $this->current_file, "line" => $this->current_line,
+                            "args" => [$realfile]));
+                        $r = $this->run_file($realfile);
                         array_pop($this->trace);
                         return $r;
-                    }
-                    else {
+                    } else {
                         $processed_files += 1;
                     }
                 }
             }
-		}
-		elseif ($node instanceof Node\Expr\Ternary)
-		{
-		    $expr_result = $this->evaluate_expression($node->cond);
-		    if ($expr_result instanceof SymbolicVariable) {
+        } elseif ($node instanceof Node\Expr\Ternary) {
+            $expr_result = $this->evaluate_expression($node->cond);
+            if ($expr_result instanceof SymbolicVariable) {
                 if ($this->execution_mode === ExecutionMode::OFFLINE) {
                     if ($this->checkpoint_restore_mode) {
                         $this->checkpoint_restore_mode = false;
                         return $this->evaluate_expression($node->if);
-                    }
-                    else {
+                    } else {
                         if (LineLogger::has_covered_new_lines($this->lineLogger->coverage_info, $this->overall_coverage_info)) {
                             $this->checkpoints[] = new Checkpoint($this->last_checkpoint, $this->current_file, $node->if);
                             return $this->evaluate_expression($node->else);
-                        }
-                        else {
+                        } else {
                             $this->terminated = true;
                             return;
                         }
                     }
-                }
-                elseif ($this->execution_mode === ExecutionMode::ONLINE) {
+                } elseif ($this->execution_mode === ExecutionMode::ONLINE) {
                     $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $node->else));
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
@@ -874,70 +754,68 @@ trait EmulatorExpression {
                         return;
                     }
                 }
-            }
-		    else {
+            } else {
                 if ($this->evaluate_expression($node->cond))
                     return $this->evaluate_expression($node->if);
                 else
                     return $this->evaluate_expression($node->else);
             }
 
-		}
-		elseif ($node instanceof Node\Expr\Closure)
-		{
-			// print_r($node);
-			$this->verbose("Closure found, emulating...\n",3);
-			$uses=[];
-			foreach ($node->uses as $use)
-			{
-			    $var_name = $this->get_variableـname($use->var);
-				if ($use->byRef)
-					$uses[$var_name]=&$this->variable_reference($use->var);
-				else
-					$uses[$var_name]=$this->variable_get($use->var);
-			}
-			$context=new EmulatorExecutionContext(['function'=>"{closure}"
-				,'namespace'=>$this->current_namespace,'active_namespaces'=>$this->current_active_namespaces
-				,'file'=>$this->current_file,'line'=>$this->current_line]);
+        } elseif ($node instanceof Node\Expr\Closure) {
+            // print_r($node);
+            $this->verbose("Closure found, emulating...\n", 3);
+            $uses = [];
+            foreach ($node->uses as $use) {
+                $var_name = $this->get_variableـname($use->var);
+                if ($use->byRef)
+                    $uses[$var_name] =& $this->variable_reference($use->var);
+                else
+                    $uses[$var_name] = $this->variable_get($use->var);
+            }
+            $context = new EmulatorExecutionContext(['function' => "{closure}"
+                , 'namespace' => $this->current_namespace, 'active_namespaces' => $this->current_active_namespaces
+                , 'file' => $this->current_file, 'line' => $this->current_line]);
 
             $closure = new EmulatorClosure("{closure}", $node->stmts, $node->params, $node->static, $node->byRef, $uses, $node->returnType, $context);
-			return $closure;
+            return $closure;
 
-		}
-		elseif (!$node instanceof Node)
+        } elseif (!$node instanceof Node)
             return $node;
-		else
-            $this->error("Unknown expression node: ",$node);
+        else
+            $this->error("Unknown expression node: ", $node);
 
-		return null;
-	}
+        return null;
+    }
 
-    protected function check_str_type($lhs_expression, $rhs_expression) {
+    protected function check_str_type($lhs_expression, $rhs_expression)
+    {
         if ((is_string($lhs_expression) && $rhs_expression instanceof SymbolicVariable && $rhs_expression->type === String_::class)
             ||
             (is_string($rhs_expression) && $lhs_expression instanceof SymbolicVariable && $lhs_expression->type === String_::class)) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
-    protected function check_str_regex_match($lhs_expression, $rhs_expression) {
+
+    protected function check_str_regex_match($lhs_expression, $rhs_expression)
+    {
         $str = '';
         $regex = '';
         if (is_string($lhs_expression) && $rhs_expression instanceof SymbolicVariable && $rhs_expression->type === String_::class) {
             $str = $lhs_expression;
             $regex = $rhs_expression->variable_value;
-        }
-        else if (is_string($rhs_expression) && $lhs_expression instanceof SymbolicVariable && $lhs_expression->type === String_::class) {
+        } else if (is_string($rhs_expression) && $lhs_expression instanceof SymbolicVariable && $lhs_expression->type === String_::class) {
             $str = $rhs_expression;
             $regex = $lhs_expression->variable_value;
         }
         // preg_match returns 1 if there is a match, 0 otherwise, false on error
         // Escape Regex characters, replace * with .* and wrap the regex with / ... /
-        return preg_match('#^'.str_replace('\*', '.*', preg_quote($regex)).'$#', $str) === 1;
-      
-    function yield_return($node){
+        return preg_match('#^' . str_replace('\*', '.*', preg_quote($regex)) . '$#', $str) === 1;
+    }
+
+    protected function yield_return($node)
+    {
         yield $this->evaluate_expression($node->expr, $is_symbolic);
     }
 }
