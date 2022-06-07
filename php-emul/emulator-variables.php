@@ -158,7 +158,12 @@ trait EmulatorVariables
 	        return $this->get_variableـname($node->var);
         }
 	    else {
-	        return $node->name;
+            if (is_string($node->name)) {
+                return $node->name;
+            }
+            else {
+                return $this->get_variableـname($node->name);
+            }
         }
     }
 	/**
