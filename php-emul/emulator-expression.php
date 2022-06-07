@@ -3,7 +3,6 @@
 namespace PHPEmul;
 
 use malmax\ExecutionMode;
-use MongoDB\BSON\Symbol;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\String_;
 
