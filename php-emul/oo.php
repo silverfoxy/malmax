@@ -406,6 +406,9 @@ class OOEmulator extends Emulator
 	{
 		$this->verbose("Creating object of type {$classname}...".PHP_EOL,2);
         $classname = strtolower($classname);
+        if (in_array($classname, $this->symbolic_classes)) {
+            return new SymbolicVariable($classname,'*',Node\Stmt\ClassLike::class,true,[],$classname);
+        }
 		$class_obj = $this->get_class_object($classname);
 		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities);
 		$constructor=null;
