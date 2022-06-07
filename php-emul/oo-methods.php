@@ -275,8 +275,8 @@ trait OOEmulatorMethods {
 	protected function run_static_method($original_class_name,$method_name,$args)
 	{
 		$class_name=$this->real_class($original_class_name);
-		if (!$this->class_exists($class_name))	
-			$this->spl_autoload_call($class_name);
+		if (!$this->class_exists($class_name))
+            $this->spl_autoload_call($class_name);
 		if (array_key_exists(strtolower($class_name), $this->classes))
 			return $this->run_user_static_method($class_name,$method_name,$args);
 		elseif (class_exists($class_name))
