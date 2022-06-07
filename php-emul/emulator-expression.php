@@ -760,7 +760,9 @@ trait EmulatorExpression {
         elseif ($node instanceof Node\Expr\Yield_)
         {
             #Implement yield
-            $this->error("Yield node not implemented: ",$node);
+            $this->yield_return($node);
+
+            #$this->error("Yield node not implemented: ",$node);
         }
 		elseif ($node instanceof Node\Expr\Instanceof_)
 		{
@@ -934,5 +936,8 @@ trait EmulatorExpression {
         // preg_match returns 1 if there is a match, 0 otherwise, false on error
         // Escape Regex characters, replace * with .* and wrap the regex with / ... /
         return preg_match('#^'.str_replace('\*', '.*', preg_quote($regex)).'$#', $str) === 1;
+      
+    function yield_return($node){
+        yield $this->evaluate_expression($node->expr, $is_symbolic);
     }
 }

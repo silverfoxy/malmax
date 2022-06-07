@@ -4,6 +4,8 @@ namespace PHPEmul;
 
 require_once __DIR__."/emulator.php";
 use PhpParser\Node;
+use PhpParser\NodeAbstract;
+
 #TODO: interfaces behave like classes when using each other, e.g. an interface can "extend"
 #	another interface. Add support. Good example is CakePHP.
 #TODO: closure,closureUse
@@ -400,7 +402,7 @@ class OOEmulator extends Emulator
 	 * @param  array  $args  		constructor args   
 	 * @return EmulatorObject            
 	 */
-	protected function new_user_object($classname,array $args)
+	public function new_user_object($classname,array $args)
 	{
 		$this->verbose("Creating object of type {$classname}...".PHP_EOL,2);
         $classname = strtolower($classname);
@@ -475,7 +477,7 @@ class OOEmulator extends Emulator
 		$this->verbose("New instance of core class '{$classname}'\n",5);
 		$class=$classname;
 		if (in_array($classname, $this->symbolic_classes)) {
-		    return new SymbolicVariable($classname,'*',Node\Stmt\ClassLike::class);
+		    return new SymbolicVariable($classname,'*',Node\Stmt\ClassLike::class,true,[],$classname);
         }
 		$mocked=isset($this->mock_classes[strtolower($classname)]);
 		if ($mocked)
@@ -534,6 +536,8 @@ class OOEmulator extends Emulator
 			$method_name=$this->name($node->name);
 			if ($object instanceof EmulatorObject)
 				$classname=$object->classname;
+            elseif ($object instanceof SymbolicVariable)
+                $classname=$object->classname;
 			elseif (is_object($object))
 				$classname=get_class($object);
 			else {
@@ -542,7 +546,17 @@ class OOEmulator extends Emulator
 			}
 			$this->verbose("Method call {$classname}::{$method_name}()".PHP_EOL,3);
 			$args=$node->args;
-			if ($object instanceof SymbolicVariable) {
+            if ($object instanceof SymbolicVariable) {
+                $class_method = $classname.'/'.$method_name;
+                $mocked_name=strtolower(str_replace('/','_',$class_method)).'_mock';
+                if (function_exists($mocked_name)){
+                    array_unshift($args, $this);
+                    $ret=call_user_func_array($mocked_name,$args);
+                    return $ret;
+                }
+                if(array_key_exists($class_method,$this->symbolic_methods)){
+                    return new SymbolicVariable($class_method,'*',NodeAbstract::class,true,[],$this->symbolic_methods[$class_method]);
+                }
 			    return new SymbolicVariable($method_name);
             }
 			return $this->run_method($object,$method_name,$args);
