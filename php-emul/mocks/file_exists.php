@@ -14,6 +14,9 @@ function file_exists_mock($emul, $filename)
         if (sizeof($files) === 0) {
             return false;
         }
+        elseif (sizeof($files) > 10) { // Too many files, potential wildcard
+            return $filename;
+        }
         elseif (sizeof($files) === 1) {
             $file = $files[0];
             if (isset(end($emul->mocked_core_function_args)[0]->value)) {
@@ -24,7 +27,7 @@ function file_exists_mock($emul, $filename)
         else {
             while(sizeof($files) > 1) {
                 $file = array_pop($files);
-                $forked_process_info = $emul->fork_execution([$file => rand(1, 10)]);
+                $forked_process_info = $emul->fork_execution([$file => range(1, rand(2, 20))]);
                 list($pid, $child_pid) = $forked_process_info;
                 if ($child_pid === 0) {
                     if (isset(end($emul->mocked_core_function_args)[0]->value)) {

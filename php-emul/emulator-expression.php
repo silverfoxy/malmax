@@ -149,10 +149,11 @@ trait EmulatorExpression {
                     }
 					elseif (!array_key_exists($index, $resArray))
 						$this->notice("Undefined offset: {$index}");
-					if ($var === null)
+					elseif ($var === null)
 						$outArray[]=$resArray[$index++];
-					elseif (!$resArray instanceof SymbolicVariable)
-						$outArray[] = $this->variable_set($var,$resArray[$index++]);
+                    else {
+                        $outArray[] = $this->variable_set($var, $resArray[$index++]);
+                    }
 				}
 				//return the rest of offsets, they are not assigned to anything by list, but still returned.
 				if (is_array($resArray)) {
@@ -183,23 +184,43 @@ trait EmulatorExpression {
         }
 		elseif ($node instanceof Node\Expr\Array_)
 		{
+            // If any of the array keys are symbolic, set the whole array as symbolic.
+            // Values can be symbolic without as long as there are concrete keys
 			$out=[];
+            // Evaluate keys but skip the assignment if any keys are symbolic
+            $symbolic_key = false;
+            $concrete_values = [];
 			foreach ($node->items as $item)
 			{
 				if (isset($item->key))
 				{
 					$key=$this->evaluate_expression($item->key, $is_symbolic);
+                    if ($symbolic_key === true) {
+                        $value = $this->evaluate_expression($item->value, $is_symbolic);
+                        if (!$value instanceof SymbolicVariable) {
+                            $concrete_values[] = $value;
+                        }
+                        continue;
+                    }
+                    if ($key instanceof SymbolicVariable) {
+                        $symbolic_key = true;
+                        continue;
+                    }
 					if ($item->byRef)
 						$out[$key]=&$this->variable_reference($item->value, $is_symbolic);
 					else
 						$out[$key]=$this->evaluate_expression($item->value, $is_symbolic);
 				}
-				else
-					if ($item->byRef)
-						$out[]=&$this->variable_reference($item->value, $is_symbolic);
-					else
-						$out[]=$this->evaluate_expression($item->value, $is_symbolic);
+				else {
+                    if ($item->byRef)
+                        $out[] =& $this->variable_reference($item->value, $is_symbolic);
+                    else
+                        $out[] = $this->evaluate_expression($item->value, $is_symbolic);
+                }
 			}
+            if ($symbolic_key === true) {
+                $out = new SymbolicVariable('Symbolic array key', '*', Node\Expr\Array_::class, true, $concrete_values);
+            }
 			return $out;
 		}
 		elseif ($node instanceof Node\Expr\Cast)
@@ -266,12 +287,13 @@ trait EmulatorExpression {
         }
 		elseif ($node instanceof Node\Expr\PreInc)
 		{
-			return $this->variable_set($node->var,$this->variable_get($node->var)+1);	
+            $variable_value = $this->variable_get($node->var);
+			return $this->variable_set($node->var,$variable_value instanceof SymbolicVariable ? $variable_value : $variable_value+1);
 		}
 		elseif ($node instanceof Node\Expr\PostInc)
 		{
 			$t=$this->variable_get($node->var);
-			$this->variable_set($node->var,$t+1);
+			$this->variable_set($node->var,$t instanceof SymbolicVariable ? $t : $t+1);
 			return $t;
 		}
 		elseif ($node instanceof Node\Expr\PreDec)
@@ -363,24 +385,44 @@ trait EmulatorExpression {
 			// 	return $this->evaluate_expression($node->left)**$this->evaluate_expression($node->right);
 			elseif ($node instanceof Node\Expr\BinaryOp\Identical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return false;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l === $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotIdentical) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return true;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l !== $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\Equal) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return false;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l == $r;
             }
 			elseif ($node instanceof Node\Expr\BinaryOp\NotEqual) {
                 if ($l instanceof SymbolicVariable || $r instanceof SymbolicVariable) {
+                    if ($this->check_str_type($l, $r) === true) {
+                        if ($this->check_str_regex_match($l, $r) === false) {
+                            return true;
+                        }
+                    }
                     return clone ($l instanceof SymbolicVariable ? $l : $r);
                 }
                 return $l != $r;
@@ -783,7 +825,7 @@ trait EmulatorExpression {
                     array_pop($this->trace);
                     return $r;
                 } else {
-                    $forked_process_info = $this->fork_execution([$realfile => []]);
+                    $forked_process_info = $this->fork_execution([$realfile => range(1, rand(2, 20))]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         array_push($this->trace, (object)array("type"=>"","function"=>$name,"file"=>$this->current_file,"line"=>$this->current_line,
@@ -869,6 +911,32 @@ trait EmulatorExpression {
 
 		return null;
 	}
+
+    protected function check_str_type($lhs_expression, $rhs_expression) {
+        if ((is_string($lhs_expression) && $rhs_expression instanceof SymbolicVariable && $rhs_expression->type === String_::class)
+            ||
+            (is_string($rhs_expression) && $lhs_expression instanceof SymbolicVariable && $lhs_expression->type === String_::class)) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    protected function check_str_regex_match($lhs_expression, $rhs_expression) {
+        $str = '';
+        $regex = '';
+        if (is_string($lhs_expression) && $rhs_expression instanceof SymbolicVariable && $rhs_expression->type === String_::class) {
+            $str = $lhs_expression;
+            $regex = $rhs_expression->variable_value;
+        }
+        else if (is_string($rhs_expression) && $lhs_expression instanceof SymbolicVariable && $lhs_expression->type === String_::class) {
+            $str = $rhs_expression;
+            $regex = $lhs_expression->variable_value;
+        }
+        // preg_match returns 1 if there is a match, 0 otherwise, false on error
+        // Escape Regex characters, replace * with .* and wrap the regex with / ... /
+        return preg_match('#^'.str_replace('\*', '.*', preg_quote($regex)).'$#', $str) === 1;
+      
     function yield_return($node){
         yield $this->evaluate_expression($node->expr, $is_symbolic);
     }
