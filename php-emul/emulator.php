@@ -946,7 +946,7 @@ class Emulator
                  */
                 if ($key instanceof SymbolicVariable && !$base instanceof SymbolicVariable) {
                     $matched_elements = $this->regex_array_fetch($base, $key->variable_value);
-                    if (is_array($base) && sizeof($matched_elements) === sizeof($base)) {
+                    if (is_array($base) && sizeof($matched_elements) === sizeof($base) && sizeof($base) > 0) {
                         // Regex matched all elements
                         $dbg = 1;
                     }
