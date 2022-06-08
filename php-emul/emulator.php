@@ -204,7 +204,7 @@ class Emulator
      * Configuration: inifite loop limit
      * @var integer
      */
-    public $infinite_loop	=	100;
+    public $infinite_loop	=	1000;
 
     /**
      * Maximum PHP version fully supported by the emulator
