@@ -42,6 +42,14 @@ trait EmulatorVariables
 		// $this->verbose(strcolor($this->get_variableـname($node).PHP_EOL, "light green"));
 		if ($key!==null) {
 		    if ($r instanceof SymbolicVariable || $key instanceof SymbolicVariable) {
+                // $class->$symbolic_property_name = something;
+                // Set all class properties to something;
+                if ($node instanceof Node\Expr\PropertyFetch) {
+                    foreach ($r as $property_name => $v) {
+                        $r[$property_name] = $value;
+                    }
+                    return $value;
+                }
 		        return new SymbolicVariable();
             }
 		    else {

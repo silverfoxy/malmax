@@ -1026,7 +1026,10 @@ class OOEmulator extends Emulator
 			if ($var instanceof EmulatorObject)
 			{
 				$property_name=$this->name($node->name);
-				if (array_key_exists($property_name, $var->properties))
+                if ($property_name instanceof SymbolicVariable) {
+                    return true;
+                }
+				else if (array_key_exists($property_name, $var->properties))
 				{
 					if (isset($var->property_visibilities[$property_name]))
 						$visibility=$var->property_visibilities[$property_name];
