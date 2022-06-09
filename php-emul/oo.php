@@ -56,7 +56,8 @@ class EmulatorObject
 	 * @var integer
 	 */
 	public $objectid;
-	public function __construct($classname,$properties=[],$visibilities=[],$classes=[])
+    public $symbolic_status;
+	public function __construct($classname,$properties=[],$visibilities=[],$classes=[],$symbolic_status=null)
 	{
 		$this->objectid=self::$object_count++;
 		$this->classname=$classname;
@@ -402,12 +403,12 @@ class OOEmulator extends Emulator
 	 * @param  array  $args  		constructor args   
 	 * @return EmulatorObject            
 	 */
-	public function new_user_object($classname,array $args)
+	public function new_user_object($classname,array $args, $symbolic_status=null)
 	{
 		$this->verbose("Creating object of type {$classname}...".PHP_EOL,2);
         $classname = strtolower($classname);
 		$class_obj = $this->get_class_object($classname);
-		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities);
+		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities, $symbolic_status);
 		$constructor=null;
 		$destructor = null;
 		
