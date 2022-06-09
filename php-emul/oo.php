@@ -408,9 +408,10 @@ class OOEmulator extends Emulator
 		$this->verbose("Creating object of type {$classname}...".PHP_EOL,2);
         $classname = strtolower($classname);
 		$class_obj = $this->get_class_object($classname);
-		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities, $symbolic_status);
+		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities);
 		$constructor=null;
 		$destructor = null;
+        $symbolic_status = $symbolic_status;
 		
 		$t=explode("\\",$classname);
 		$old_style_constructor=end($t); //strip namespace
@@ -464,6 +465,8 @@ class OOEmulator extends Emulator
 		if ($destructor) {
 		    $this->destructors[] = $obj;
         }
+        if ($symbolic_status)
+            $obj->symbolic_status = true;
 		// $this->verbose("Creation done!".PHP_EOL,2); ///DEBUG
 		return $obj;
 	}
