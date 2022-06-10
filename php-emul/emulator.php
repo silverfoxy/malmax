@@ -946,20 +946,11 @@ class Emulator
                  */
                 if ($key instanceof SymbolicVariable && !$base instanceof SymbolicVariable) {
                     $matched_elements = $this->regex_array_fetch($base, $key->variable_value);
-                    if (is_array($base) && sizeof($matched_elements) === sizeof($base)) {
-                        // Regex matched all elements
-                        $dbg = 1;
-                    }
-                    elseif (sizeof($matched_elements) > 0) {
-                        // Regex matched some elements
-                        $dbg = 1;
-                    }
-                    else {
+                    if (sizeof($matched_elements) === 0) {
                         // Regex matched no elements
                         $key = null;
                         return $base;
                     }
-                    $dbg = 1;
 
                 }
                 $symbolicVariable = new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', Scalar::class, true, $matched_elements);

@@ -539,8 +539,12 @@ class OOEmulator extends Emulator
 			$method_name=$this->name($node->name);
 			if ($object instanceof EmulatorObject)
 				$classname=$object->classname;
-            elseif ($object instanceof SymbolicVariable)
-                $classname=$object->classname;
+            elseif ($object instanceof SymbolicVariable) {
+                $classname = $object->classname;
+                if ($classname === null) {
+                    $this->error("Call to a member function '{$method_name}()' on a Symbolic object without a type");
+                }
+            }
 			elseif (is_object($object))
 				$classname=get_class($object);
 			else {
