@@ -75,6 +75,10 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
     // Current priority of this execution from the queue
     public $current_priority = null;
 
+    // When satisfying conditions with in_array(Symbolic_element, Concrete_array)
+    // return Symbolic variable result or fork for every match in Concrete_array
+    public $fork_on_symbolic_in_array = false;
+
     /**
      * Tracks whether extended logs are provided to the emulation
      * Extended logs include the keys for $_POST, $_COOKIE, and $_SESSION variables but not the values.

@@ -190,14 +190,23 @@ trait EmulatorVariables
                 $any_match = false;
                 $all_match = null;
                 foreach ($r->concrete_values as $symbolic_array_key => $symbolic_array_value) {
-                    if (in_array($key, $symbolic_array_value)) {
-                        if ($all_match === null) {
-                            $all_match = true;
+                    if (is_array($symbolic_array_value)) {
+                        if (in_array($key, $symbolic_array_value)) {
+                            if ($all_match === null) {
+                                $all_match = true;
+                            }
+                            $any_match = true;
+                        } else {
+                            $all_match = false;
                         }
-                        $any_match = true;
                     }
                     else {
-                        $all_match = false;
+                        if (array_key_exists($key, $r->concrete_values)) {
+                            return true;
+                        }
+                        else {
+                            return false;
+                        }
                     }
                 }
                 if ($all_match === true) {

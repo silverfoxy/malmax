@@ -14,6 +14,13 @@ function str_replace_mock($emul, $search, $replace, $subject, &$count=null)
         $regex_value = $result->variable_value;
         $result->variable_value = str_replace($search, $replace, $regex_value, $count);
         $result->type = String_::class;
+        if (sizeof($result->concrete_values) > 0) {
+            array_walk($result->concrete_values, function (&$value, $key, $params) {
+                $search = $params[0];
+                $replace = $params[1];
+                $value = str_replace($search, $replace, $value);
+            }, [$search, $replace]);
+        }
         return $result;
     }
     else {
