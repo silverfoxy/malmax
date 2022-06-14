@@ -113,8 +113,8 @@ trait EmulatorStatement
             $symbolic_iterations = $this->symbolic_loop_iterations;
             $expr_cond = $this->evaluate_expression($node->cond);
 			while ($expr_cond &&
-                   ($expr_cond instanceof SymbolicVariable ? $symbolic_iterations-- > 0 : true)
-                    && $expr_cond->symbolic_status===null)
+                   (($expr_cond instanceof SymbolicVariable ? $symbolic_iterations-- > 0 : true) &&  #if not symbolic, this is set to true, however:
+                   ($expr_cond->symbolic_status==true ? $symbolic_iterations-- > 0 : true))) #need to check if the object was created through symbolic variable call
 			{
 				$i++;
 				$this->run_code($node->stmts);
