@@ -37,7 +37,7 @@ trait EmulatorVariables
 	 * @param  mixed $value 
 	 * @return mixed or null        
 	 */
-	function variable_set($node,$value=null)
+	function variable_set($node, $value=null)
 	{
 		$r=&$this->symbol_table($node,$key,true);
 		// $this->verbose(strcolor($this->get_variableـname($node).PHP_EOL, "light green"));

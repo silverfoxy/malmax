@@ -584,11 +584,11 @@ class Emulator
             }
             elseif ($k === '_REQUEST') {
                 foreach (array_keys($v) as $key) {
-                    if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_COOKIE'])) {
-                        $v[$key] = new SymbolicVariable('', '*', Node\Scalar\String_::class, true);
+                    if (array_key_exists($key, $init_environ['_POST'])) {
+                        $v[$key] = &$this->variables['_POST'][$key];
                     }
-                    elseif (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_SESSION'])) {
-                        $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
+                    elseif (array_key_exists($key, $init_environ['_COOKIE'])) {
+                        $v[$key] = &$this->variables['_COOKIE'][$key];
                     }
                 }
             }
@@ -959,6 +959,9 @@ class Emulator
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));
             // }
+            if (in_array($key2, ['_POST', '_COOKIE'])) {
+                $this->variable_stack['global']['_REQUEST'][$key] = &$base[$key];
+            }
             return $base;
         }
         elseif ($node instanceof Node\Expr\Variable)
