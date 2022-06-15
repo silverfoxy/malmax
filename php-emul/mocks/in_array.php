@@ -20,8 +20,8 @@ function in_array_mock($emul, $needle, $haystack, $strict=false)
                         }
                         return true;
                     }
-                    return false;
                 }
+                return false;
             }
             else {
                 $needle->concrete_values = $haystack;
