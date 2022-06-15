@@ -12,7 +12,7 @@ function in_array_mock($emul, $needle, $haystack, $strict=false)
             if ($emul->fork_on_symbolic_in_array === true) {
                 foreach ($haystack as $value) {
                     // fork
-                    $forked_process_info = $emul->fork_execution(['AD_in_array_'.$value => range(1, 200)]);
+                    $forked_process_info = $emul->fork_execution(['AD_in_array_'.$value => range(1, 100)]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         if (isset(end($emul->mocked_core_function_args)[0]->value)) {
