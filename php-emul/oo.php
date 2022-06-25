@@ -406,6 +406,9 @@ class OOEmulator extends Emulator
 	{
 		$this->verbose("Creating object of type {$classname}...".PHP_EOL,2);
         $classname = strtolower($classname);
+        if (in_array($classname, $this->symbolic_classes)) {
+            return new SymbolicVariable($classname,'*',Node\Stmt\ClassLike::class,true,[],$classname);
+        }
 		$class_obj = $this->get_class_object($classname);
 		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities);
 		$constructor=null;
@@ -536,8 +539,12 @@ class OOEmulator extends Emulator
 			$method_name=$this->name($node->name);
 			if ($object instanceof EmulatorObject)
 				$classname=$object->classname;
-            elseif ($object instanceof SymbolicVariable)
-                $classname=$object->classname;
+            elseif ($object instanceof SymbolicVariable) {
+                $classname = $object->classname;
+                if ($classname === null) {
+                    $this->error("Call to a member function '{$method_name}()' on a Symbolic object without a type");
+                }
+            }
 			elseif (is_object($object))
 				$classname=get_class($object);
 			else {
@@ -1023,7 +1030,10 @@ class OOEmulator extends Emulator
 			if ($var instanceof EmulatorObject)
 			{
 				$property_name=$this->name($node->name);
-				if (array_key_exists($property_name, $var->properties))
+                if ($property_name instanceof SymbolicVariable) {
+                    return true;
+                }
+				else if (array_key_exists($property_name, $var->properties))
 				{
 					if (isset($var->property_visibilities[$property_name]))
 						$visibility=$var->property_visibilities[$property_name];

@@ -398,6 +398,8 @@ trait EmulatorFunctions
                     $this->mocked_core_function_args[] = $args;
                 } elseif ($args[0]->value instanceof Assign) {
                     $this->mocked_core_function_args[] = [new Arg($args[0]->value->var)];
+                } else if ($args[0]->value instanceof Node\Expr\ArrayDimFetch) {
+                    $this->mocked_core_function_args[] = [new Arg($args[0]->value)];
                 }
                 else {
                     $this->mocked_core_function_args[] = null;

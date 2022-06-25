@@ -584,11 +584,11 @@ class Emulator
             }
             elseif ($k === '_REQUEST') {
                 foreach (array_keys($v) as $key) {
-                    if (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_POST']) || array_key_exists($key, $init_environ['_COOKIE'])) {
-                        $v[$key] = new SymbolicVariable('', '*', Node\Scalar\String_::class, true);
+                    if (array_key_exists($key, $init_environ['_POST'])) {
+                        $v[$key] = &$this->variables['_POST'][$key];
                     }
-                    elseif (!array_key_exists($key, $init_environ['_GET']) && array_key_exists($key, $init_environ['_SESSION'])) {
-                        $v[$key] = new SymbolicVariable('', '*', NodeAbstract::class, true);
+                    elseif (array_key_exists($key, $init_environ['_COOKIE'])) {
+                        $v[$key] = &$this->variables['_COOKIE'][$key];
                     }
                 }
             }
@@ -946,20 +946,11 @@ class Emulator
                  */
                 if ($key instanceof SymbolicVariable && !$base instanceof SymbolicVariable) {
                     $matched_elements = $this->regex_array_fetch($base, $key->variable_value);
-                    if (is_array($base) && sizeof($matched_elements) === sizeof($base)) {
-                        // Regex matched all elements
-                        $dbg = 1;
-                    }
-                    elseif (sizeof($matched_elements) > 0) {
-                        // Regex matched some elements
-                        $dbg = 1;
-                    }
-                    else {
+                    if (sizeof($matched_elements) === 0) {
                         // Regex matched no elements
                         $key = null;
                         return $base;
                     }
-                    $dbg = 1;
 
                 }
                 $symbolicVariable = new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', Scalar::class, true, $matched_elements);
@@ -968,6 +959,9 @@ class Emulator
             // else {
             //     $this->notice(sprintf('Undefined index: %s[%s] at [%s:%s]', $node->var->name, $key, $this->current_file, $this->current_line));
             // }
+            if (in_array($key2, ['_POST', '_COOKIE'])) {
+                $this->variable_stack['global']['_REQUEST'][$key] = &$base[$key];
+            }
             return $base;
         }
         elseif ($node instanceof Node\Expr\Variable)
