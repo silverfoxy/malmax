@@ -75,6 +75,10 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
     // Current priority of this execution from the queue
     public $current_priority = null;
 
+    // When satisfying conditions with in_array(Symbolic_element, Concrete_array)
+    // return Symbolic variable result or fork for every match in Concrete_array
+    public $fork_on_symbolic_in_array = false;
+
     /**
      * Tracks whether extended logs are provided to the emulation
      * Extended logs include the keys for $_POST, $_COOKIE, and $_SESSION variables but not the values.
@@ -888,7 +892,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 if (!$break && is_array($node->elseifs) && sizeof($node->elseifs) > 0) {
                     // Main branch is not satisfied, now checking the elseif branches
                     foreach ($node->elseifs as $elseif) {
-                        $this->current_line = $node->getLine();
+                        $this->current_line = $elseif->cond->getLine();
                         $this->lineLogger->logNodeCoverage($elseif->cond, $this->current_file);
                         $branch_condition = $this->evaluate_expression($elseif->cond);
                         $branch_conditions[$this->statement_id($elseif)] = $branch_condition;

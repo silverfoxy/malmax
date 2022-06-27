@@ -509,9 +509,27 @@ trait EmulatorExpression
                     return new SymbolicVariable("symbolic concat", $l->variable_value . $r->variable_value, String_::class);
                 }
                 if ($l instanceof SymbolicVariable) {
-                    return new SymbolicVariable("symbolic concat", $l->variable_value . $r, String_::class);
+                    if (sizeof($l->concrete_values) > 0) {
+                        $l_clone = clone $l;
+                        array_walk($l_clone->concrete_values, function (&$value, $key, $r) {
+                            $value = $value . $r;
+                        }, $r);
+                        return $l_clone;
+                    }
+                    else {
+                        return new SymbolicVariable("symbolic concat", $l->variable_value . $r, String_::class);
+                    }
                 } else if ($r instanceof SymbolicVariable) {
-                    return new SymbolicVariable("symbolic concat", $l . $r->variable_value, String_::class);
+                    if (sizeof($r->concrete_values) > 0) {
+                        $r_clone = clone $r;
+                        array_walk($r_clone->concrete_values, function (&$value, $key, $l) {
+                            $value = $l . $value;
+                        }, $l);
+                        return $r_clone;
+                    }
+                    else {
+                        return new SymbolicVariable("symbolic concat", $l . $r->variable_value, String_::class);
+                    }
                 }
 
                 return $l . $r;

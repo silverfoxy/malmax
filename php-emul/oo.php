@@ -56,7 +56,8 @@ class EmulatorObject
 	 * @var integer
 	 */
 	public $objectid;
-	public function __construct($classname,$properties=[],$visibilities=[],$classes=[])
+    public $symbolic_status;
+	public function __construct($classname,$properties=[],$visibilities=[],$classes=[],$symbolic_status=null)
 	{
 		$this->objectid=self::$object_count++;
 		$this->classname=$classname;
@@ -402,14 +403,18 @@ class OOEmulator extends Emulator
 	 * @param  array  $args  		constructor args   
 	 * @return EmulatorObject            
 	 */
-	public function new_user_object($classname,array $args)
+	public function new_user_object($classname,array $args, $symbolic_status=null)
 	{
 		$this->verbose("Creating object of type {$classname}...".PHP_EOL,2);
         $classname = strtolower($classname);
+        if (in_array($classname, $this->symbolic_classes)) {
+            return new SymbolicVariable($classname,'*',Node\Stmt\ClassLike::class,true,[],$classname);
+        }
 		$class_obj = $this->get_class_object($classname);
 		$obj=new EmulatorObject($class_obj->name, $class_obj->properties, $class_obj->property_visibilities);
 		$constructor=null;
 		$destructor = null;
+        $symbolic_status = $symbolic_status;
 		
 		$t=explode("\\",$classname);
 		$old_style_constructor=end($t); //strip namespace
@@ -463,6 +468,8 @@ class OOEmulator extends Emulator
 		if ($destructor) {
 		    $this->destructors[] = $obj;
         }
+        if ($symbolic_status)
+            $obj->symbolic_status = true;
 		// $this->verbose("Creation done!".PHP_EOL,2); ///DEBUG
 		return $obj;
 	}
@@ -536,8 +543,12 @@ class OOEmulator extends Emulator
 			$method_name=$this->name($node->name);
 			if ($object instanceof EmulatorObject)
 				$classname=$object->classname;
-            elseif ($object instanceof SymbolicVariable)
-                $classname=$object->classname;
+            elseif ($object instanceof SymbolicVariable) {
+                $classname = $object->classname;
+                if ($classname === null) {
+                    $this->error("Call to a member function '{$method_name}()' on a Symbolic object without a type");
+                }
+            }
 			elseif (is_object($object))
 				$classname=get_class($object);
 			else {
@@ -1023,7 +1034,10 @@ class OOEmulator extends Emulator
 			if ($var instanceof EmulatorObject)
 			{
 				$property_name=$this->name($node->name);
-				if (array_key_exists($property_name, $var->properties))
+                if ($property_name instanceof SymbolicVariable) {
+                    return true;
+                }
+				else if (array_key_exists($property_name, $var->properties))
 				{
 					if (isset($var->property_visibilities[$property_name]))
 						$visibility=$var->property_visibilities[$property_name];

@@ -7,6 +7,7 @@ require_once "SymbolicVariable.php";
 use AnimateDead\Utils;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\String_;
+use PhpParser\NodeAbstract;
 
 trait EmulatorVariables
 {
@@ -36,12 +37,20 @@ trait EmulatorVariables
 	 * @param  mixed $value 
 	 * @return mixed or null        
 	 */
-	function variable_set($node,$value=null)
+	function variable_set($node, $value=null)
 	{
 		$r=&$this->symbol_table($node,$key,true);
 		// $this->verbose(strcolor($this->get_variableـname($node).PHP_EOL, "light green"));
 		if ($key!==null) {
 		    if ($r instanceof SymbolicVariable || $key instanceof SymbolicVariable) {
+                // $class->$symbolic_property_name = something;
+                // Set all class properties to something;
+                if ($node instanceof Node\Expr\PropertyFetch) {
+                    foreach ($r as $property_name => $v) {
+                        $r[$property_name] = $value;
+                    }
+                    return $value;
+                }
 		        return new SymbolicVariable();
             }
 		    else {
@@ -178,12 +187,43 @@ trait EmulatorVariables
 		$this->error_restore();
 		if ($r instanceof SymbolicVariable) {
             if (count($r->concrete_values) > 0 && !$key instanceof SymbolicVariable) {
-                if (array_key_exists($key, $r->concrete_values)) {
+                $any_match = false;
+                $all_match = null;
+                foreach ($r->concrete_values as $symbolic_array_key => $symbolic_array_value) {
+                    if (is_array($symbolic_array_value)) {
+                        if (in_array($key, $symbolic_array_value)) {
+                            if ($all_match === null) {
+                                $all_match = true;
+                            }
+                            $any_match = true;
+                        } else {
+                            $all_match = false;
+                        }
+                    }
+                    else {
+                        if (array_key_exists($key, $r->concrete_values)) {
+                            return true;
+                        }
+                        else {
+                            return false;
+                        }
+                    }
+                }
+                if ($all_match === true) {
                     return true;
+                }
+                else if ($any_match === true) {
+                    return new SymbolicVariable('', '*', NodeAbstract::class, true);
                 }
                 else {
                     return false;
                 }
+                // if (array_key_exists($key, $r->concrete_values)) {
+                //     return true;
+                // }
+                // else {
+                //     return false;
+                // }
             }
             elseif ($r->isset === true) {
                 return true;
