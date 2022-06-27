@@ -774,7 +774,8 @@ trait EmulatorExpression
             }
             $context = new EmulatorExecutionContext(['function' => "{closure}"
                 , 'namespace' => $this->current_namespace, 'active_namespaces' => $this->current_active_namespaces
-                , 'file' => $this->current_file, 'line' => $this->current_line]);
+                , 'file' => $this->current_file, 'line' => $this->current_line, 'this' => $this->current_this
+                , 'class' => $this->current_class, 'self' => $this->current_self]);
 
             $closure = new EmulatorClosure("{closure}", $node->stmts, $node->params, $node->static, $node->byRef, $uses, $node->returnType, $context);
             return $closure;

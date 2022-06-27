@@ -161,7 +161,7 @@ class EmulatorObject
         }
         else {
             $current_object = $this;
-            while (isset($current_object->parent)) {
+             while (isset($current_object->parent)) {
                 $current_object = $current_object->parent;
                 $has_property = $current_object->hasProperty($property_name);
                 if ($has_property === true) {
