@@ -1730,7 +1730,12 @@ class Emulator
         // file_put_contents('/home/ubuntu/fork_lines.txt', sprintf('%s:%d:%d'.PHP_EOL, $this->current_file, $this->current_line, getmypid()), FILE_APPEND);
         // Prevent duplicate forks
         // Look at line coverage + variables
-        $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variable_stack));
+        try{
+            $md5_current_state = md5(json_encode($this->lineLogger->coverage_info).serialize($this->variable_stack));
+        }
+        catch(\Exception $e){
+            $md5_current_state = md5(json_encode($this->lineLogger->coverage_info));
+        }
         $md5_current_line_coverage_state = md5(json_encode($this->lineLogger->coverage_info));
         // Look at line coverage only
         // $md5_current_state = md5(json_encode($this->lineLogger->coverage_info) . json_encode($this->symbolic_variables));
