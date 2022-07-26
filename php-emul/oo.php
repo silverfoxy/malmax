@@ -606,14 +606,15 @@ class OOEmulator extends Emulator
 		{
 			$class=$this->name($node->class);
 			$constant=$this->name($node->name);
-			if (class_exists($class))
-				return constant("{$class}::{$constant}");
             // Special class constant, returns the fully qualified class name
 			if ($constant === 'class') {
                 return $this->fully_qualify_name($class);
             }
             $class=$this->real_class($class);
             $fq_classname = stripos($class, $this->current_namespace) !== false ? $class : $this->namespaced_name($class);
+            if (class_exists($class)) {
+                return constant("{$class}::{$constant}");
+            }
             if (!$this->user_class_exists($fq_classname)) {
                 $this->spl_autoload_call($fq_classname);
             }
