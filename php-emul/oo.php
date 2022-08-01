@@ -514,6 +514,9 @@ class OOEmulator extends Emulator
 		$classname=$this->real_class($classname); //apparently 'new self' is ok!
 		// if (!$this->class_exists($classname))
         $predefined = include "hardcoded-vals.php";
+        if (in_array($classname, $this->symbolic_classes)) {
+            return new SymbolicVariable($classname, '*', Node\Stmt\ClassLike::class, true, null, $classname);
+        }
         if (!$this->user_class_exists($classname) && !in_array($classname,$predefined))
 			$this->spl_autoload_call($classname);
 		if ($this->user_class_exists($classname)) //user classes
