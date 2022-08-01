@@ -493,7 +493,10 @@ trait OOEmulatorMethods {
 		}
 		if ($class_name===null)
 			$class_name=$object->classname;
+        $current_self_backup = $this->current_self;
+        $this->current_self = $class_name;
 		$res=$this->run_user_static_method($class_name,$method_name,$args,$object);
+        $this->current_self = $current_self_backup;
 		return $res;
 	}
 
