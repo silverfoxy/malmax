@@ -3,6 +3,7 @@
 namespace PHPEmul;
 
 use malmax\ExecutionMode;
+use PhpParser\Builder\Function_;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\String_;
 
@@ -92,13 +93,45 @@ trait EmulatorExpression
      */
     protected function evaluate_expression($node, &$is_symbolic = false)
     {
-        if ($this->terminated) return null;
+        if ($this->terminated) {
+            return null;
+        }
         $this->expression_preprocess($node);
         if ($node === null)
             return null;
         elseif ($node instanceof SymbolicVariable) {
             $is_symbolic = true;
             return $node;
+        }
+        elseif ($node instanceof Node\Scalar) {
+            if ($node instanceof Node\Scalar\MagicConst) {
+                if ($node instanceof Node\Scalar\MagicConst\Class_) {
+                    return $this->current_class;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Dir) {
+                    return dirname($this->current_file);
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\File) {
+                    return $this->current_file;
+                }
+                elseif ($node instanceof Function_) {
+                    return $this->current_function;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Line) {
+                    return $this->current_line;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Method) {
+                    return $this->current_method;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Namespace_) {
+                    return $this->current_namespace;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Trait_) {
+                    $this->notice('Trait magic const not implemented.');
+                    return null;
+                }
+            }
+            return $node->value;
         } elseif (is_array($node)) {
             return $node;
             $this->error("Did not expect array node!", $node);

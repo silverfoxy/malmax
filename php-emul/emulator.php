@@ -104,6 +104,7 @@ class Emulator
     public array $ast;
 
     public $execution_id = 0; // Used in the distributed version
+    public $parent_execution_id = 0;
 
     public array $initenv;
     public string $httpverb;

@@ -950,7 +950,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 					array_push($this->active_conditions,$condition);
 					$this->if_nesting++;
                     // $this->verbose("Running the code inside if body ".$node->getStartLine().PHP_EOL);
-					$this->run_code($selected_branch_statements);
+					$res = $this->run_code($selected_branch_statements);
 					$this->if_nesting--;
 					array_pop($this->active_conditions);
 				}
@@ -958,7 +958,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 				//     $this->shutdown();
 				//     exit();
                 // }
-				return;
+				return $res;
 			}
 			else //non-concolic
 			{
