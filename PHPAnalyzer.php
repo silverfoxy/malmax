@@ -873,7 +873,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 }
                 elseif ($main_branch_condition instanceof SymbolicVariable) {
                     // $this->verbose('should be forking'.PHP_EOL);
-                    $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $node->cond));
+                    $forked_process_info = $this->fork_execution([$this->current_file, $this->current_line, true]);
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {
@@ -905,7 +905,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         }
                         elseif ($branch_condition instanceof SymbolicVariable) {
                             // Elseif condition is symbolic
-                            $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node->elseifs, $elseif));
+                            $forked_process_info = $this->fork_execution([$this->current_file, $this->current_line, true]);
                             if ($forked_process_info !== false) {
                                 list($pid, $child_pid) = $forked_process_info;
                                 if ($child_pid === 0) {
@@ -993,6 +993,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                 if ($master_condition instanceof SymbolicVariable) {
                     $this->verbose(strcolor("Switch condition relies on SymbolicVariable, running all branches\n", "light green"), 4);
                     foreach ($node->cases as $case) {
+                        $this->current_line = $case->getStartLine();
                         if ($case->cond === null) { // If default branch, do not fork
                             $this->verbose(strcolor(
                                 sprintf("Running default branch %s [%s:%s] ...\n", $this->statement_id(), $this->current_file, $this->current_line)
@@ -1006,7 +1007,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         // If not default branch, fork for each case
                         if (!$break) {
                             if (sizeof($case->stmts) !== 0) {
-                                $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case), true);
+                                $forked_process_info = $this->fork_execution([$this->current_file, $this->current_line, true], true);
                                 if ($forked_process_info != false) {
                                     list($pid, $child_pid) = $forked_process_info;
                                     if ($child_pid === 0) {
@@ -1031,6 +1032,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                         if ($break) {
                             break;
                         }
+                        $this->current_line = $case->getStartLine();
                         // If some of the conditions are concretely satisfied, run those
                         $cond = $this->evaluate_expression($case->cond);
                         if ($cond == $master_condition && !$cond instanceof SymbolicVariable || $run_next_case) {
@@ -1049,7 +1051,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
                             // If some of the conditions are Symbolic, fork and run them
                             // Or if the case is piggy backing a Symbolic condition, also run that one ($run_next_case)
                             if (!$break) {
-                                $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $case));
+                                $forked_process_info = $this->fork_execution([$this->current_file, $this->current_line, true]);
                                 if ($forked_process_info != false) {
                                     list($pid, $child_pid) = $forked_process_info;
                                     if ($child_pid === 0) {

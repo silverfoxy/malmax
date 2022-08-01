@@ -194,7 +194,7 @@ trait OOEmulatorMethodExistence {
             else {
                 while (sizeof($classes) > 1) {
                     $class = array_pop($classes);
-                    $forked_process_info = $this->fork_execution([]);
+                    $forked_process_info = $this->fork_execution([$class, 1, true]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         return $this->classes[$class];

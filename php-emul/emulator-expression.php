@@ -457,10 +457,11 @@ trait EmulatorExpression
                 }
             } elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
                 $this->error_silence();
+                $current_line = $this->current_line;
                 $l = $this->evaluate_expression($node->left, $is_symbolic);
                 $this->error_restore();
                 if ($l instanceof SymbolicVariable) {
-                    $forked_process_info = $this->fork_execution([]);
+                    $forked_process_info = $this->fork_execution([$this->current_file, $current_line, true]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         return $l;
@@ -762,7 +763,7 @@ trait EmulatorExpression
                     array_pop($this->trace);
                     return $r;
                 } else {
-                    $forked_process_info = $this->fork_execution([$realfile => range(1, rand(2, 20))]);
+                    $forked_process_info = $this->fork_execution([$realfile, 1, true]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         array_push($this->trace, (object)array("type" => "", "function" => $name, "file" => $this->current_file, "line" => $this->current_line,
@@ -792,7 +793,7 @@ trait EmulatorExpression
                         }
                     }
                 } elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                    $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $node->else));
+                    $forked_process_info = $this->fork_execution([$this->current_file, $this->current_line, true]);
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {
