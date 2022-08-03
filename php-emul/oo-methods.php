@@ -303,7 +303,7 @@ trait OOEmulatorMethods {
 		$this->verbose("Running {$class_name}::{$method_name}()...".PHP_EOL,2);
         // Check for symbolic methods
         $class_function_name = $class_name.'/'.$method_name;
-        if (array_key_exists($class_function_name, $this->symbolic_methods)) {
+        if (in_array($class_function_name, $this->symbolic_methods)) {
             // Method is symbolic, return a symbol
             return new SymbolicVariable($class_function_name);
         }
