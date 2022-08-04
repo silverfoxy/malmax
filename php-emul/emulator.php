@@ -953,7 +953,11 @@ class Emulator
                         $key = null;
                         return $base;
                     }
-
+                    elseif (sizeof($matched_elements) === 1) {
+                        // Regex matched no elements
+                        $key = array_keys($base)[0];
+                        return $base;
+                    }
                 }
                 $symbolicVariable = new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', Scalar::class, true, $matched_elements);
                 return $symbolicVariable;
