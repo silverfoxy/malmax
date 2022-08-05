@@ -174,7 +174,7 @@ trait EmulatorFunctions
 		$name=$trace_args['function'];
 		if (isset($trace_args['class']))
 			$name=$trace_args['class'].$trace_args['type'].$name;
-		$processed_args=$this->user_function_prologue($name,$function->params,$args);
+ 		$processed_args=$this->user_function_prologue($name,$function->params,$args);
 		if ($processed_args===false)
 			return null;
 		// if ($function_summary = $this->function_summary_exists($trace_args, $processed_args)) {

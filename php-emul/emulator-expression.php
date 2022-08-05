@@ -255,9 +255,14 @@ trait EmulatorExpression
         } elseif ($node instanceof Node\Expr\BooleanNot) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
-                $result = clone $expr;
-                $result->variable_name = sprintf('not(%s)', $result->variable_name);
-                return $result;
+                if (is_bool($expr->isset)) {
+                    return !$expr->isset;
+                }
+                else {
+                    $result = clone $expr;
+                    $result->variable_name = sprintf('not(%s)', $result->variable_name);
+                    return $result;
+                }
             }
             if ($expr instanceof \stdClass) {
                 return false;

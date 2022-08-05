@@ -5,6 +5,12 @@ function is_writable_mock($emul, $filename)
         return $filename->isset;
     }
     else {
-        return is_writable($filename);
+        // For /tmp/* file names, return true
+        if (strpos($filename, '/tmp') !== false ) {
+            return true;
+        }
+        else {
+            return is_writable($filename);
+        }
     }
 }
