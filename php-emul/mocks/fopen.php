@@ -5,6 +5,12 @@ function fopen_mock($emul, $filename, $mode, $use_include_path = false, $context
         return $filename;
     }
     else {
-        return fopen($filename, $mode, $use_include_path, $context);
+        // For /tmp/* file names, return true
+        if (strpos($filename, '/tmp') !== false ) {
+            return new \PHPEmul\SymbolicVariable($filename, $filename, \PhpParser\NodeAbstract::class, true);
+        }
+        else {
+            return fopen($filename, $mode, $use_include_path, $context);
+        }
     }
 }
