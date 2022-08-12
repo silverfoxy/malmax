@@ -3,6 +3,7 @@
 namespace PHPEmul;
 
 use malmax\ExecutionMode;
+use PhpParser\Builder\Function_;
 use PhpParser\Node;
 use PhpParser\Node\Scalar\String_;
 
@@ -93,13 +94,45 @@ trait EmulatorExpression
      */
     protected function evaluate_expression($node, &$is_symbolic = false)
     {
-        if ($this->terminated) return null;
+        if ($this->terminated) {
+            return null;
+        }
         $this->expression_preprocess($node);
         if ($node === null)
             return null;
         elseif ($node instanceof SymbolicVariable) {
             $is_symbolic = true;
             return $node;
+        }
+        elseif ($node instanceof Node\Scalar) {
+            if ($node instanceof Node\Scalar\MagicConst) {
+                if ($node instanceof Node\Scalar\MagicConst\Class_) {
+                    return $this->current_class;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Dir) {
+                    return dirname($this->current_file);
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\File) {
+                    return $this->current_file;
+                }
+                elseif ($node instanceof Function_) {
+                    return $this->current_function;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Line) {
+                    return $this->current_line;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Method) {
+                    return $this->current_method;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Namespace_) {
+                    return $this->current_namespace;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Trait_) {
+                    $this->notice('Trait magic const not implemented.');
+                    return null;
+                }
+            }
+            return $node->value;
         } elseif (is_array($node)) {
             return $node;
             $this->error("Did not expect array node!", $node);
@@ -223,9 +256,14 @@ trait EmulatorExpression
         } elseif ($node instanceof Node\Expr\BooleanNot) {
             $expr = $this->evaluate_expression($node->expr);
             if ($expr instanceof SymbolicVariable) {
-                $result = clone $expr;
-                $result->variable_name = sprintf('not(%s)', $result->variable_name);
-                return $result;
+                if (is_bool($expr->isset)) {
+                    return !$expr->isset;
+                }
+                else {
+                    $result = clone $expr;
+                    $result->variable_name = sprintf('not(%s)', $result->variable_name);
+                    return $result;
+                }
             }
             if ($expr instanceof \stdClass) {
                 return false;
@@ -425,10 +463,11 @@ trait EmulatorExpression
                 }
             } elseif ($node instanceof Node\Expr\BinaryOp\Coalesce) {
                 $this->error_silence();
+                $current_line = $this->current_line;
                 $l = $this->evaluate_expression($node->left, $is_symbolic);
                 $this->error_restore();
                 if ($l instanceof SymbolicVariable) {
-                    $forked_process_info = $this->fork_execution([]);
+                    $forked_process_info = $this->fork_execution([$this->current_file, $current_line, true]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         return $l;
@@ -732,7 +771,7 @@ trait EmulatorExpression
                     array_pop($this->trace);
                     return $r;
                 } else {
-                    $forked_process_info = $this->fork_execution([$realfile => range(1, rand(2, 20))]);
+                    $forked_process_info = $this->fork_execution([$realfile, 1, true]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         array_push($this->trace, (object)array("type" => "", "function" => $name, "file" => $this->current_file, "line" => $this->current_line,
@@ -762,7 +801,7 @@ trait EmulatorExpression
                         }
                     }
                 } elseif ($this->execution_mode === ExecutionMode::ONLINE) {
-                    $forked_process_info = $this->fork_execution($this->get_next_branch_lines($node, $node->else));
+                    $forked_process_info = $this->fork_execution([$this->current_file, $this->current_line, true]);
                     if ($forked_process_info !== false) {
                         list($pid, $child_pid) = $forked_process_info;
                         if ($child_pid === 0) {

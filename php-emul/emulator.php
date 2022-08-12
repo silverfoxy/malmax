@@ -81,6 +81,7 @@ class Emulator
             ,'execution_context_stack' //all previous contexts, i.e. all current_* vars
             ,'data'
         ]);
+        $this->parent_execution_id = null;
         $this->reanimation_callback_object = $reanimation_callback_object;
         $this->parser = (new ParserFactory())->create(ParserFactory::PREFER_PHP7);
         $this->printer = new Standard;
@@ -103,6 +104,7 @@ class Emulator
     public array $ast;
 
     public $execution_id = 0; // Used in the distributed version
+    public $parent_execution_id = 0;
 
     public array $initenv;
     public string $httpverb;
@@ -951,7 +953,11 @@ class Emulator
                         $key = null;
                         return $base;
                     }
-
+                    elseif (sizeof($matched_elements) === 1) {
+                        // Regex matched no elements
+                        $key = array_keys($base)[0];
+                        return $base;
+                    }
                 }
                 $symbolicVariable = new SymbolicVariable(sprintf('%s[%s]', $this->get_variableـname($node->var), $key), '*', Scalar::class, true, $matched_elements);
                 return $symbolicVariable;
@@ -1806,7 +1812,7 @@ class Emulator
             $this->verbose(sprintf('Adding reanimation task at %s:%d', $this->current_file, $this->current_line).PHP_EOL);
             // $this->verbose(print_r($this->full_reanimation_transcript, true).PHP_EOL);
             // $this->verbose('Line coverage hash: '.md5(json_encode($this->lineLogger->coverage_info)).PHP_EOL);
-            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id, $this->extended_logs_emulation_mode, $new_branch_coverage, $this->current_priority);
+            $this->reanimation_callback_object->add_reanimation_task($this->initenv, $this->httpverb, $this->entry_file, $this->full_reanimation_transcript, $this->current_file, $this->current_line, $md5_current_line_coverage_state, $md5_current_state, $this->lineLogger->coverage_info, $this->execution_id, $this->parent_execution_id, $this->extended_logs_emulation_mode, $new_branch_coverage, $this->current_priority);
             return array($pid, $child_pid);
         }
     }

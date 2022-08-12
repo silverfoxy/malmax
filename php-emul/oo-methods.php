@@ -194,7 +194,7 @@ trait OOEmulatorMethodExistence {
             else {
                 while (sizeof($classes) > 1) {
                     $class = array_pop($classes);
-                    $forked_process_info = $this->fork_execution([]);
+                    $forked_process_info = $this->fork_execution([$class, 1, true]);
                     list($pid, $child_pid) = $forked_process_info;
                     if ($child_pid === 0) {
                         return $this->classes[$class];
@@ -303,7 +303,7 @@ trait OOEmulatorMethods {
 		$this->verbose("Running {$class_name}::{$method_name}()...".PHP_EOL,2);
         // Check for symbolic methods
         $class_function_name = $class_name.'/'.$method_name;
-        if (array_key_exists($class_function_name, $this->symbolic_methods)) {
+        if (in_array($class_function_name, $this->symbolic_methods)) {
             // Method is symbolic, return a symbol
             return new SymbolicVariable($class_function_name);
         }
@@ -493,7 +493,10 @@ trait OOEmulatorMethods {
 		}
 		if ($class_name===null)
 			$class_name=$object->classname;
+        $current_self_backup = $this->current_self;
+        $this->current_self = $class_name;
 		$res=$this->run_user_static_method($class_name,$method_name,$args,$object);
+        $this->current_self = $current_self_backup;
 		return $res;
 	}
 

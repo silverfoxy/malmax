@@ -514,6 +514,9 @@ class OOEmulator extends Emulator
 		$classname=$this->real_class($classname); //apparently 'new self' is ok!
 		// if (!$this->class_exists($classname))
         $predefined = include "hardcoded-vals.php";
+        if (in_array($classname, $this->symbolic_classes)) {
+            return new SymbolicVariable($classname, '*', Node\Stmt\ClassLike::class, true, null, $classname);
+        }
         if (!$this->user_class_exists($classname) && !in_array($classname,$predefined))
 			$this->spl_autoload_call($classname);
 		if ($this->user_class_exists($classname)) //user classes
@@ -606,14 +609,15 @@ class OOEmulator extends Emulator
 		{
 			$class=$this->name($node->class);
 			$constant=$this->name($node->name);
-			if (class_exists($class))
-				return constant("{$class}::{$constant}");
             // Special class constant, returns the fully qualified class name
 			if ($constant === 'class') {
                 return $this->fully_qualify_name($class);
             }
             $class=$this->real_class($class);
             $fq_classname = stripos($class, $this->current_namespace) !== false ? $class : $this->namespaced_name($class);
+            if (class_exists($class)) {
+                return constant("{$class}::{$constant}");
+            }
             if (!$this->user_class_exists($fq_classname)) {
                 $this->spl_autoload_call($fq_classname);
             }
