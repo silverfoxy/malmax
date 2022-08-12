@@ -838,8 +838,8 @@ trait EmulatorExpression
 
     protected function yield_return($node)
     {
-	    if ($node->expr)
-	      return $this->evaluate_expression($node->expr);
+	    if ($node->value)
+	      return $this->evaluate_expression($node->value);
 	    else
 	      return null;
     }
