@@ -953,18 +953,19 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 					$res = $this->run_code($selected_branch_statements);
 					$this->if_nesting--;
 					array_pop($this->active_conditions);
+                    return $res;
 				}
 				// if ($this->terminate_early) {
 				//     $this->shutdown();
 				//     exit();
                 // }
-				return $res;
+				return;
 			}
 			else //non-concolic
 			{
 				$condition=$this->print_ast($node->cond).$this->file_line(" (",")");
 				array_push($this->active_conditions,$condition);
-				$res=parent::run_statement($node);
+				$res = parent::run_statement($node);
 				array_pop($this->active_conditions);
 				return $res;
 			}
