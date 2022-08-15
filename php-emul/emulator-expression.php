@@ -103,36 +103,6 @@ trait EmulatorExpression
         elseif ($node instanceof SymbolicVariable) {
             $is_symbolic = true;
             return $node;
-        }
-        elseif ($node instanceof Node\Scalar) {
-            if ($node instanceof Node\Scalar\MagicConst) {
-                if ($node instanceof Node\Scalar\MagicConst\Class_) {
-                    return $this->current_class;
-                }
-                elseif ($node instanceof Node\Scalar\MagicConst\Dir) {
-                    return dirname($this->current_file);
-                }
-                elseif ($node instanceof Node\Scalar\MagicConst\File) {
-                    return $this->current_file;
-                }
-                elseif ($node instanceof Function_) {
-                    return $this->current_function;
-                }
-                elseif ($node instanceof Node\Scalar\MagicConst\Line) {
-                    return $this->current_line;
-                }
-                elseif ($node instanceof Node\Scalar\MagicConst\Method) {
-                    return $this->current_method;
-                }
-                elseif ($node instanceof Node\Scalar\MagicConst\Namespace_) {
-                    return $this->current_namespace;
-                }
-                elseif ($node instanceof Node\Scalar\MagicConst\Trait_) {
-                    $this->notice('Trait magic const not implemented.');
-                    return null;
-                }
-            }
-            return $node->value;
         } elseif (is_array($node)) {
             return $node;
             $this->error("Did not expect array node!", $node);
@@ -600,24 +570,34 @@ trait EmulatorExpression
                 }
                 return $res;
             } elseif ($node instanceof Node\Scalar\MagicConst) {
-                if ($node instanceof Node\Scalar\MagicConst\File)
+                if ($node instanceof Node\Scalar\MagicConst\File) {
                     return $this->current_file;
-                elseif ($node instanceof Node\Scalar\MagicConst\Dir)
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Dir) {
                     return dirname($this->current_file);
-                elseif ($node instanceof Node\Scalar\MagicConst\Line)
-                    return $node->getLine();
-                elseif ($node instanceof Node\Scalar\MagicConst\Function_)
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Line) {
+                    return $this->current_line;
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Function_) {
                     return $this->current_function;
-                elseif ($node instanceof Node\Scalar\MagicConst\Class_)
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Class_) {
                     return $this->current_self;
-                elseif ($node instanceof Node\Scalar\MagicConst\Method)
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Method) {
                     return $this->current_method;
-                elseif ($node instanceof Node\Scalar\MagicConst\Namespace_)
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Namespace_) {
                     return $this->current_namespace;
-                elseif ($node instanceof Node\Scalar\MagicConst\Trait_)
-                    return $this->current_trait;
-            } else
+                }
+                elseif ($node instanceof Node\Scalar\MagicConst\Trait_) {
+                    $this->notice('Trait magic const not implemented.');
+                    return null;
+                }
+            } else {
                 $this->error("Unknown scalar node: ", $node);
+            }
         } // elseif ($node instanceof Node\Expr\ArrayItem); //this is handled in Array_ implicitly
 
         elseif ($node instanceof Node\Expr\Variable) {
