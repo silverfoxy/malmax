@@ -958,7 +958,7 @@ class PHPAnalyzer extends \PHPEmul\OOEmulator
 				//     $this->shutdown();
 				//     exit();
                 // }
-				return $res;
+				return;
 			}
 			else //non-concolic
 			{
