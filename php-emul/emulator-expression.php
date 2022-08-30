@@ -56,7 +56,8 @@ class EmulatorClosure {
 
         $context=new EmulatorExecutionContext(['function'=>"{closure}"
             ,'namespace'=>$callable->current_namespace,'active_namespaces'=>$callable->current_active_namespaces
-            ,'file'=>$callable->current_file,'line'=>$callable->current_line]);
+            ,'file'=>$callable->current_file,'line'=>$callable->current_line ]);
+
 
         $closure->context=$context;
         return $closure;
@@ -691,7 +692,9 @@ trait EmulatorExpression
             return shell_exec($res);
         } elseif ($node instanceof Node\Expr\Yield_) {
             #Implement yield
-            $this->yield_return($node);
+	    $this->return_value = $this->yield_return($node);
+	    $this->return = true;
+	    return $this->return_value;
 
             #$this->error("Yield node not implemented: ",$node);
         } elseif ($node instanceof Node\Expr\Instanceof_) {
@@ -854,6 +857,9 @@ trait EmulatorExpression
 
     protected function yield_return($node)
     {
-        yield $this->evaluate_expression($node->expr, $is_symbolic);
+	    if ($node->value)
+	      return $this->evaluate_expression($node->value);
+	    else
+	      return null;
     }
 }
