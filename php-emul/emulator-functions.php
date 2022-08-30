@@ -199,7 +199,10 @@ trait EmulatorFunctions
             $this->current_closure_scope = isset($function->scope) ? $function->scope : null;
             $this->current_closure_boundobject = isset($function->bound_object) ? $function->bound_object : null;
         }
+        $current_self_backup = $this->current_self;
+        $this->current_self = $this->current_class;
 		$res=$this->run_code($function->code); // Find file NodeDatabaseChildContainer
+        $this->current_self = $current_self_backup;
         if ($function instanceof EmulatorClosure) {
             $this->current_closure_scope = null;
             $this->current_closure_boundobject = null;
