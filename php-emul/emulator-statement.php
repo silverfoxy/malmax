@@ -150,10 +150,10 @@ trait EmulatorStatement
 			$byref=$node->byRef;
 			$symbolic = false;
 			if ($node->expr instanceof Node\Expr\Variable and $byref) {
-                $list=&$this->variable_reference($node->expr);
+                $list = &$this->variable_reference($node->expr);
             }
 			else {
-                $list=$this->evaluate_expression($node->expr);
+                $list = $this->evaluate_expression($node->expr);
                 if ($list instanceof SymbolicVariable) {
                     // set some vars
                     $symbolic_iterations = $this->symbolic_loop_iterations;

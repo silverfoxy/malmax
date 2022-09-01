@@ -1049,6 +1049,12 @@ class OOEmulator extends Emulator
 						$visibility=EmulatorObject::Visibility_Public;
 
                     $class = $var->property_class[$property_name] ?? $var->classname;
+                    // If the property is inherited from the parent, update class to parent
+                    foreach ($this->ancestry($class) as $parent_class) {
+                        if ($this->property_exists($parent_class, $property_name)) {
+                            $class = $parent_class;
+                        }
+                    }
                     $current_class = $this->current_this->classname ?? $this->current_class;
 
 					return ($visibility==EmulatorObject::Visibility_Public

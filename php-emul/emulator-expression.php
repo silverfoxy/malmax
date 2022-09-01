@@ -691,12 +691,10 @@ trait EmulatorExpression
 
             return shell_exec($res);
         } elseif ($node instanceof Node\Expr\Yield_) {
-            #Implement yield
-	    $this->return_value = $this->yield_return($node);
-	    $this->return = true;
-	    return $this->return_value;
-
-            #$this->error("Yield node not implemented: ",$node);
+            end($this->execution_context_stack)->generator_function = true;
+            if ($yield_return = $this->yield_return($node)) {
+                end($this->execution_context_stack)->expanded_generator_results[] = $yield_return;
+            }
         } elseif ($node instanceof Node\Expr\Instanceof_) {
             $var = $this->evaluate_expression($node->expr, $is_symbolic);
             $classname = $this->name($node->class);
@@ -857,9 +855,11 @@ trait EmulatorExpression
 
     protected function yield_return($node)
     {
-	    if ($node->value)
-	      return $this->evaluate_expression($node->value);
-	    else
-	      return null;
+        if ($node->value) {
+            return $this->evaluate_expression($node->value);
+        }
+        else {
+            return null;
+        }
     }
 }

@@ -33,6 +33,9 @@ require_once "Checkpoint.php";
  */
 class EmulatorExecutionContext
 {
+    public $generator_function = false;
+    public $expanded_generator_results = [];
+
     function __construct($arr=[])
     {
         foreach ($arr as $k=>&$v)
@@ -112,6 +115,8 @@ class Emulator
     // unique execution identifier
     public string $correlation_id;
 
+    public $generator_depth = 0;
+    public $expanded_generator_results = [];
 
     public $symbolic_loop_iterations;
 

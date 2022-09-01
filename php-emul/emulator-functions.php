@@ -202,6 +202,12 @@ trait EmulatorFunctions
         $current_self_backup = $this->current_self;
         $this->current_self = $this->current_class;
 		$res=$this->run_code($function->code); // Find file NodeDatabaseChildContainer
+        if (end($this->execution_context_stack)->generator_function === true) {
+            $res = end($this->execution_context_stack)->expanded_generator_results;
+            // Restore context values
+            end($this->execution_context_stack)->generator_function = false;
+            end($this->execution_context_stack)->expanded_generator_results = [];
+        }
         $this->current_self = $current_self_backup;
         if ($function instanceof EmulatorClosure) {
             $this->current_closure_scope = null;
