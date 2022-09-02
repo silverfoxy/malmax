@@ -1468,7 +1468,8 @@ class Emulator
             }
             catch (\Exception $e)
             {
-                $this->throw_exception($e);
+                // $this->throw_exception($e);
+                $this->exception_handler($e);
             }
             catch (\Error $e) //php 7. fortunately, even though Error is not a class, this will not err in PHP 5
             {

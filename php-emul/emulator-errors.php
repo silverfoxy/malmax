@@ -10,7 +10,10 @@ class EmulatedException extends \Exception {
 	public $object=null;
 	function __construct(/*EmulatorObject*/ $e)
 	{
-		$this->object=$e;
+		$this->object = $e;
+        while (!method_exists($e, 'getMessage') && isset($e->parent)) {
+            $e = $e->parent;
+        }
 		$this->message = $e->getMessage();
 	}
 
@@ -27,17 +30,19 @@ trait EmulatorErrors
 	{
 		$class=get_class($e);
 		$this->verbose("Throwing '{$class}' at {$this->filename_only()}:{$this->current_line} (try depth: {$this->try})...\n",4);
-		if (!$e instanceof Exception)
+		if (!$this->is_a($e,"EmulatedException"))
 		{
 			$this->verbose("Exception is user-type, wrapping into EmulatedException...\n",5);
-			if ($this->is_a($e,"Exception")) {
-			    $this->output(print_r($e, true).PHP_EOL);
-                $e = new EmulatedException($e);
-            }
-			else
-				$this->error("Inconsistency: exception of type unrelated to Exception found");
+            $this->output(print_r($e, true).PHP_EOL);
+            $e = new EmulatedException($e);
+			// if ($this->is_a($e,"Exception")) {
+			//     $this->output(print_r($e, true).PHP_EOL);
+            //     $e = new EmulatedException($e);
+            // }
+			// else
+			// 	$this->error("Inconsistency: exception of type unrelated to Exception found");
 		}
-		if ($this->try>0)
+		if ($this->try > 0)
 			throw $e;
 		else
 			$this->exception_handler($e);
