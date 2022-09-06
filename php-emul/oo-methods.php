@@ -307,6 +307,14 @@ trait OOEmulatorMethods {
             // Method is symbolic, return a symbol
             return new SymbolicVariable($class_function_name);
         }
+        elseif (function_exists(strtolower(str_replace('/', '_', $class_function_name)) . '_mock')) {
+            // Run mocked method.
+            $mocked_name = strtolower(str_replace('/', '_', $class_function_name)) . '_mock';
+            $this->verbose("Calling mocked method {$mocked_name}() instead of {$class_function_name}()...\n",4);
+            array_unshift($args, $this); //emulator is first argument in mock functions
+            $ret = call_user_func_array($mocked_name, $args); //core function
+            return $ret;
+        }
 		$flag=false;
 		foreach ([$method_name,'__call',"__callStatic"] as $method) //magic methods
 		{

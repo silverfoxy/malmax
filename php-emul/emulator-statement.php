@@ -114,7 +114,7 @@ trait EmulatorStatement
             $expr_cond = $this->evaluate_expression($node->cond);
 			while ($expr_cond &&
             ($expr_cond instanceof SymbolicVariable ? $symbolic_iterations-- > 0 : true) &&  // if not symbolic, this is set to true, however:
-                   ($expr_cond->symbolic_status==true ? $symbolic_iterations-- > 0 : true))         // need to check if the object was created through symbolic variable call
+                   ($expr_cond->symbolic_status == true ? $symbolic_iterations-- > 0 : true))         // need to check if the object was created through symbolic variable call
 			{
 				$i++;
 				$this->run_code($node->stmts);
@@ -182,7 +182,7 @@ trait EmulatorStatement
                 $list = $this->run_method($list,'count');
             }
             else if ($list instanceof EmulatorObject and in_array('ArrayAccess', $this->class_implements($list))){
-                    $list=$list->properties;
+                $list=$list->properties;
             }
             else if ($list instanceof EmulatorObject)
                 $list=$list->properties;
