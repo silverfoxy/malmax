@@ -1057,12 +1057,23 @@ class OOEmulator extends Emulator
                             $class = $parent_class;
                         }
                     }
+
                     $current_class = $this->current_this->classname ?? $this->current_class;
 
-					return ($visibility==EmulatorObject::Visibility_Public
-						   || ($visibility==EmulatorObject::Visibility_Protected && $current_class !== null && ($this->is_a($current_class, $class,true)))
-						   || ($visibility==EmulatorObject::Visibility_Private && $current_class !== null && strtolower($current_class) == strtolower($class) )
-							);
+                    $current_class_vis = ($visibility==EmulatorObject::Visibility_Public
+                        || ($visibility==EmulatorObject::Visibility_Protected && $current_class !== null && ($this->is_a($current_class, $class,true)))
+                        || ($visibility==EmulatorObject::Visibility_Private && $current_class !== null && strtolower($current_class) == strtolower($class) )
+                    );
+                    $current_self_vis = ($visibility==EmulatorObject::Visibility_Public
+                        || ($visibility==EmulatorObject::Visibility_Protected && $this->current_self !== null && ($this->is_a($this->current_self, $class,true)))
+                        || ($visibility==EmulatorObject::Visibility_Private && $this->current_self !== null && strtolower($this->current_self) == strtolower($class) )
+                    );
+                    if (strcasecmp($current_class, $this->current_self) !== 0) {
+                        return $current_class_vis || $current_self_vis;
+                    }
+                    else {
+                        return $current_class_vis;
+                    }
 				}
 				elseif ($var->hasProperty($property_name)) {
 				    if ($var->isVisible($property_name)) {

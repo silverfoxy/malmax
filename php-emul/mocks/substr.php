@@ -14,7 +14,10 @@ function substr_mock($emul, $string, $offset, $length=null)
         $regex_value = $result->variable_value;
         $substr = $length === null ? substr($regex_value, $offset) : substr($regex_value, $offset, $length);
         // Is the substring still symbolic?
-        if (strpos($substr, '*') !== false) {
+        if ($substr === false) {
+            return $result;
+        }
+        elseif (strpos($substr, '*') !== false) {
             $result->variable_value = $substr;
             return $result;
         }
