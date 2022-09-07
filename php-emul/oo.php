@@ -550,6 +550,15 @@ class OOEmulator extends Emulator
 				$classname=$object->classname;
             elseif ($object instanceof SymbolicVariable) {
                 $classname = $object->classname;
+                if (!isset($object->classname)) {
+                    foreach ($object->concrete_values as $concrete_value) {
+                        if (isset($concrete_value->classname)) {
+                            $classname = $concrete_value->classname;
+                            $object = $concrete_value;
+                            break;
+                        }
+                    }
+                }
                 if ($classname === null) {
                     $this->error("Call to a member function '{$method_name}()' on a Symbolic object without a type");
                 }

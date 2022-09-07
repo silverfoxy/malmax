@@ -745,7 +745,9 @@ trait EmulatorExpression
                     // No need to fork for single or last file to be included
                     array_push($this->trace, (object)array("type" => "", "function" => $name, "file" => $this->current_file, "line" => $this->current_line,
                         "args" => [$realfile]));
+                    $current_self_backup = $this->current_self;
                     $r = $this->run_file($realfile);
+                    $this->current_self = $current_self_backup;
                     array_pop($this->trace);
                     return $r;
                 } else {
